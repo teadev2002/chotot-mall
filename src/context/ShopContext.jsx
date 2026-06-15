@@ -252,7 +252,7 @@ export const ShopProvider = ({ children }) => {
   // Filters state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [priceRange, setPriceRange] = useState(1000);
+  const [priceRange, setPriceRange] = useState(20000000);
   const [sortBy, setSortBy] = useState('featured');
 
   // Sync state to local storage
@@ -283,6 +283,101 @@ export const ShopProvider = ({ children }) => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  // On startup, check for accessToken in document.cookie (from Google OAuth redirection)
+  useEffect(() => {
+    const getCookie = (name) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(';').shift();
+      return null;
+    };
+
+    const cookieToken = getCookie('accessToken');
+    if (cookieToken) {
+      const decoded = decodeJwt(cookieToken);
+      if (decoded && decoded.exp * 1000 > Date.now()) {
+        const role = decoded.role || 'CUSTOMER';
+        const email = decoded.email || `google-user-${decoded.sub}@gmail.com`;
+
+        // Save in localStorage to align with normal login flow
+        localStorage.setItem('accessToken', cookieToken);
+        localStorage.setItem('currentUserEmail', email);
+
+        const loggedUser = {
+          id: decoded.sub,
+          name: email.split('@')[0],
+          email: email,
+          role: role,
+          token: cookieToken
+        };
+
+        setCurrentUser(loggedUser);
+
+        // Redirect based on role
+        if (role === 'ADMIN') {
+          setView('admin');
+        } else {
+          setView('storefront');
+        }
+
+        // Register in customers list if not exists
+        setCustomers((prevCusts) => {
+          const exists = prevCusts.find((c) => c.email.toLowerCase() === email.toLowerCase());
+          if (exists) return prevCusts;
+          return [
+            ...prevCusts,
+            {
+              id: prevCusts.length + 1,
+              name: email.split('@')[0],
+              email: email,
+              ordersCount: 0,
+              totalSpent: 0.00,
+              joinedDate: new Date().toISOString().split('T')[0]
+            }
+          ];
+        });
+      }
+    }
+  }, []);
+
+  // On startup, fetch all posts from the API and map them to products
+  useEffect(() => {
+    const fetchStorefrontPosts = async () => {
+      try {
+        const response = await fetch('https://cho-tot-production.up.railway.app/post/all');
+        if (!response.ok) throw new Error('API failed');
+        const resData = await response.json();
+        if (resData.success && Array.isArray(resData.data)) {
+          const mapped = resData.data.map((post) => ({
+            id: post.id,
+            title: post.title,
+            description: post.content || 'No description provided.',
+            price: post.price !== null && post.price !== undefined ? Number(post.price) : 0,
+            category: post.categoryId === 1 ? 'Electronics' : post.categoryId === 2 ? 'Fashion' : 'Accessories',
+            image: post.categoryId === 1 
+              ? 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop'
+              : post.categoryId === 2
+              ? 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=600&auto=format&fit=crop'
+              : 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=600&auto=format&fit=crop',
+            rating: 4.5,
+            reviewsCount: 12,
+            stock: post.published ? 10 : 0,
+            colors: ['#0f172a', '#64748b'],
+            sizes: ['Standard'],
+            reviews: [
+              { id: 1, author: 'Alex', rating: 5, date: '2026-06-15', comment: 'Great post preview. Exactly as described.' }
+            ]
+          }));
+          setProducts(mapped);
+        }
+      } catch (err) {
+        console.error('Failed to load posts for storefront:', err);
+      }
+    };
+
+    fetchStorefrontPosts();
+  }, []);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));

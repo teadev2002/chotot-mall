@@ -124,24 +124,29 @@ export default function ProductGrid() {
           </div>
 
           {/* Price Range Filter */}
-          <div className="filter-section">
-            <div className="filter-heading">
-              Max Price: <span style={{ color: 'var(--clr-primary)', fontWeight: 700 }}>${priceRange}</span>
-            </div>
-            <input
-              type="range"
-              min="10"
-              max="1000"
-              step="10"
-              value={priceRange}
-              onChange={(e) => setPriceRange(Number(e.target.value))}
-              style={{ width: '100%', accentColor: 'var(--clr-primary)', cursor: 'pointer' }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--clr-text-muted)', marginTop: '0.25rem' }}>
-              <span>$10</span>
-              <span>$1000</span>
-            </div>
-          </div>
+          {(() => {
+            const maxPriceVal = products.length > 0 ? Math.max(...products.map((p) => p.price), 1000) : 1000;
+            return (
+              <div className="filter-section">
+                <div className="filter-heading">
+                  Max Price: <span style={{ color: 'var(--clr-primary)', fontWeight: 700 }}>${priceRange.toLocaleString()}</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max={maxPriceVal}
+                  step={maxPriceVal > 100000 ? 50000 : maxPriceVal > 10000 ? 1000 : 10}
+                  value={priceRange > maxPriceVal ? maxPriceVal : priceRange}
+                  onChange={(e) => setPriceRange(Number(e.target.value))}
+                  style={{ width: '100%', accentColor: 'var(--clr-primary)', cursor: 'pointer' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--clr-text-muted)', marginTop: '0.25rem' }}>
+                  <span>$0</span>
+                  <span>${maxPriceVal.toLocaleString()}</span>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Reset Filters button */}
           {(selectedCategory !== 'All' || priceRange < 1000 || searchQuery) && (
@@ -225,7 +230,9 @@ export default function ProductGrid() {
                       </div>
 
                       <div className="product-card-footer">
-                        <span className="product-card-price">${prod.price.toFixed(2)}</span>
+                        <span className="product-card-price" style={{ fontSize: '1rem' }}>
+                          {prod.price > 0 ? `$${prod.price.toLocaleString()}` : 'Contact for Price'}
+                        </span>
                         
                         <div style={{ display: 'flex', gap: '0.35rem' }}>
                           <button

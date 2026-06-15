@@ -143,7 +143,9 @@ export default function ProductDetail() {
 
           {/* Pricing */}
           <div className="detail-price-row">
-            <span className="detail-price">${product.price.toFixed(2)}</span>
+            <span className="detail-price">
+              {product.price > 0 ? `$${product.price.toLocaleString()}` : 'Contact for Price'}
+            </span>
             {isOutOfStock ? (
               <span className="badge badge-danger" style={{ fontSize: '0.85rem' }}>Out of Stock</span>
             ) : product.stock < 5 ? (
