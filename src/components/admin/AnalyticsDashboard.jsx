@@ -3,29 +3,29 @@ import { ShopContext } from '../../context/ShopContext';
 import { DollarSign, ShoppingBag, Users, TrendingUp, AlertTriangle } from 'lucide-react';
 
 export default function AnalyticsDashboard() {
-  const { orders, products, customers } = useContext(ShopContext);
+  const { products, customers } = useContext(ShopContext);
 
-  // 1. KPI Calculations
-  const totalRevenue = orders.reduce((sum, ord) => sum + ord.total, 0);
-  const totalOrdersCount = orders.length;
-  const totalCustomersCount = customers.length;
-  const averageOrderValue = totalOrdersCount > 0 ? (totalRevenue / totalOrdersCount) : 0;
+  // 1. Classifieds KPI Calculations
+  const totalListings = products.length;
+  const totalUsers = customers.length;
+  const draftListingsCount = products.filter((p) => p.published === false).length;
+  const categoriesCount = new Set(products.map((p) => p.category)).size || 3;
 
-  // Find products with low inventory stock (stock < 5)
-  const lowStockProducts = products.filter((prod) => prod.stock < 5);
+  // Draft Listings table data
+  const draftListings = products.filter((p) => p.published === false);
 
-  // 2. Custom SVG Chart A Data: Sales over the last 7 days
+  // 2. Custom SVG Chart A Data: Listings volume over the last 7 days
   const last7Days = [...Array(7)].map((_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - i);
     return d.toISOString().split('T')[0];
   }).reverse();
 
-  const salesByDate = last7Days.map((date) => {
+  const postsByDate = last7Days.map((date) => {
     const formattedDate = new Date(date).toLocaleDateString('en-US', { weekday: 'short', month: 'numeric', day: 'numeric' });
-    const dateOrders = orders.filter((ord) => ord.date.startsWith(date));
-    const revenue = dateOrders.reduce((sum, ord) => sum + ord.total, 0);
-    return { label: formattedDate, value: revenue };
+    // Filter posts created on this date
+    const count = products.filter((p) => p.createdAt && p.createdAt.startsWith(date)).length;
+    return { label: formattedDate, value: count };
   });
 
   // Chart Dimensions & Vector Plot math
@@ -34,16 +34,16 @@ export default function AnalyticsDashboard() {
   const paddingX = 40;
   const paddingY = 20;
 
-  const maxSalesVal = Math.max(...salesByDate.map((d) => d.value), 100);
-  const getX = (index) => paddingX + (index * (chartWidth - paddingX * 2)) / (salesByDate.length - 1);
-  const getY = (val) => chartHeight - paddingY - (val * (chartHeight - paddingY * 2)) / maxSalesVal;
+  const maxPostsVal = Math.max(...postsByDate.map((d) => d.value), 4);
+  const getX = (index) => paddingX + (index * (chartWidth - paddingX * 2)) / (postsByDate.length - 1);
+  const getY = (val) => chartHeight - paddingY - (val * (chartHeight - paddingY * 2)) / maxPostsVal;
 
-  // Build SVG Path strings for Sales Chart
-  const linePoints = salesByDate.map((d, i) => `${getX(i)},${getY(d.value)}`);
+  // Build SVG Path strings for Listings Volume Chart
+  const linePoints = postsByDate.map((d, i) => `${getX(i)},${getY(d.value)}`);
   const linePath = linePoints.length > 0 ? `M ${linePoints.join(' L ')}` : '';
-  const areaPath = linePoints.length > 0 ? `${linePath} L ${getX(salesByDate.length - 1)},${chartHeight - paddingY} L ${getX(0)},${chartHeight - paddingY} Z` : '';
+  const areaPath = linePoints.length > 0 ? `${linePath} L ${getX(postsByDate.length - 1)},${chartHeight - paddingY} L ${getX(0)},${chartHeight - paddingY} Z` : '';
 
-  // 3. Custom SVG Chart B Data: Products count by Category
+  // 3. Custom SVG Chart B Data: Listings count by Category
   const categories = ['Electronics', 'Fashion', 'Accessories'];
   const categoryCount = categories.map((cat) => {
     const count = products.filter((p) => p.category === cat).length;
@@ -63,9 +63,9 @@ export default function AnalyticsDashboard() {
   return (
     <div className="anim-fade-in">
       <div className="admin-page-header">
-        <h1 className="hero-title" style={{ fontSize: '2rem' }}>Analytics Dashboard</h1>
+        <h1 className="hero-title" style={{ fontSize: '2rem' }}>Classifieds Administration Dashboard</h1>
         <div style={{ fontSize: '0.85rem', color: 'var(--clr-text-muted)', background: 'var(--clr-bg-card)', padding: '0.5rem 1rem', borderRadius: 'var(--radius-full)', border: '1px solid var(--clr-border)' }}>
-          Database Sync Status: <span style={{ color: 'var(--clr-success)', fontWeight: 700 }}>Active</span>
+          Sync Status: <span style={{ color: 'var(--clr-success)', fontWeight: 700 }}>Online</span>
         </div>
       </div>
 
@@ -74,71 +74,69 @@ export default function AnalyticsDashboard() {
         {/* KPI 1 */}
         <div className="kpi-card anim-scale-in">
           <div className="kpi-info">
-            <span className="kpi-label">Gross Revenue</span>
-            <span className="kpi-value">${totalRevenue.toFixed(2)}</span>
+            <span className="kpi-label">Active Listings</span>
+            <span className="kpi-value">{totalListings}</span>
             <span className="kpi-change positive">
               <TrendingUp size={12} />
-              +12.4% vs last week
+              Posts in database
             </span>
           </div>
           <div className="kpi-icon-wrapper success">
-            <DollarSign size={22} />
+            <ShoppingBag size={22} />
           </div>
         </div>
 
         {/* KPI 2 */}
         <div className="kpi-card anim-scale-in">
           <div className="kpi-info">
-            <span className="kpi-label">Total Transactions</span>
-            <span className="kpi-value">{totalOrdersCount}</span>
+            <span className="kpi-label">Registered Users</span>
+            <span className="kpi-value">{totalUsers}</span>
             <span className="kpi-change positive">
               <TrendingUp size={12} />
-              +8.1% vs last week
+              Customer profiles
             </span>
           </div>
           <div className="kpi-icon-wrapper primary">
-            <ShoppingBag size={22} />
+            <Users size={22} />
           </div>
         </div>
 
         {/* KPI 3 */}
         <div className="kpi-card anim-scale-in">
           <div className="kpi-info">
-            <span className="kpi-label">Active Users</span>
-            <span className="kpi-value">{totalCustomersCount}</span>
-            <span className="kpi-change positive">
-              <TrendingUp size={12} />
-              +14.2% user growth
+            <span className="kpi-label">Draft / Private Posts</span>
+            <span className="kpi-value">{draftListingsCount}</span>
+            <span className="kpi-change warning">
+              Awaiting review
             </span>
           </div>
           <div className="kpi-icon-wrapper warning">
-            <Users size={22} />
+            <AlertTriangle size={22} />
           </div>
         </div>
 
         {/* KPI 4 */}
         <div className="kpi-card anim-scale-in">
           <div className="kpi-info">
-            <span className="kpi-label">Avg Ticket Size</span>
-            <span className="kpi-value">${averageOrderValue.toFixed(2)}</span>
+            <span className="kpi-label">Listing Categories</span>
+            <span className="kpi-value">{categoriesCount}</span>
             <span className="kpi-change positive">
-              <TrendingUp size={12} />
-              +4.8% item growth
+              Active sectors
             </span>
           </div>
           <div className="kpi-icon-wrapper danger">
-            <DollarSign size={22} strokeWidth={2.5} />
+            <TrendingUp size={22} strokeWidth={2.5} />
           </div>
         </div>
       </section>
 
       {/* Custom Vector Charts */}
       <section className="charts-grid">
-        {/* Chart A: Sales Trend Line Chart */}
+        {/* Chart A: Daily Listing Volume */}
         <div className="chart-card">
           <div className="chart-header">
-            <h2 className="chart-title">Revenue Flow (Past 7 Days)</h2>
-            <span className="badge badge-primary">USD Billed</span>
+            <h2 className="chart-title">New Listings Posted (Past 7 Days)</h2>
+            <span className="badge badge-primary">Volume</span>
           </div>
           <div className="chart-svg-container">
             <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} width="100%" height="100%">
@@ -171,7 +169,7 @@ export default function AnalyticsDashboard() {
               {linePath && <path d={linePath} className="chart-line" />}
 
               {/* Data circles & Tooltips */}
-              {salesByDate.map((d, i) => (
+              {postsByDate.map((d, i) => (
                 <g key={i}>
                   <circle
                     cx={getX(i)}
@@ -196,7 +194,7 @@ export default function AnalyticsDashboard() {
                     fontSize="9px"
                     fontWeight="bold"
                   >
-                    {d.value > 0 ? `$${d.value.toFixed(0)}` : ''}
+                    {d.value}
                   </text>
                 </g>
               ))}
@@ -204,11 +202,11 @@ export default function AnalyticsDashboard() {
           </div>
         </div>
 
-        {/* Chart B: Category Inventory Bar Chart */}
+        {/* Chart B: Category Listing Bar Chart */}
         <div className="chart-card">
           <div className="chart-header">
-            <h2 className="chart-title">Products Count by Category</h2>
-            <span className="badge badge-warning">Current Inventory</span>
+            <h2 className="chart-title">Listings by Category</h2>
+            <span className="badge badge-warning">Current Counts</span>
           </div>
           <div className="chart-svg-container">
             <svg viewBox={`0 0 ${barChartWidth} ${barChartHeight}`} width="100%" height="100%">
@@ -258,7 +256,7 @@ export default function AnalyticsDashboard() {
                       fontSize="10px"
                       fontWeight="bold"
                     >
-                      {c.value} Items
+                      {c.value} Posts
                     </text>
                   </g>
                 );
@@ -268,29 +266,29 @@ export default function AnalyticsDashboard() {
         </div>
       </section>
 
-      {/* Critical Alerts Row */}
+      {/* Draft Listings Awaiting Review */}
       <section className="admin-card-table">
-        <div className="table-toolbar" style={{ background: 'var(--clr-danger-light)', color: 'var(--clr-danger)' }}>
+        <div className="table-toolbar" style={{ background: 'var(--clr-warning-light)', color: 'var(--clr-warning-dark)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700 }}>
             <AlertTriangle size={18} />
-            Critical Stock Notifications ({lowStockProducts.length})
+            Draft & Unpublished Listings ({draftListings.length})
           </div>
-          <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Action Required: Reorder needed</span>
+          <span style={{ fontSize: '0.8rem', fontWeight: 600 }}>Action: Manage in "Manage Posts" tab</span>
         </div>
 
         <div className="table-responsive-container">
-          {lowStockProducts.length > 0 ? (
+          {draftListings.length > 0 ? (
             <table className="admin-table">
               <thead>
                 <tr>
-                  <th>Product Details</th>
+                  <th>Post Title</th>
                   <th>Category</th>
-                  <th>Current Stock</th>
-                  <th>Status</th>
+                  <th>Seller Account</th>
+                  <th>Publish Status</th>
                 </tr>
               </thead>
               <tbody>
-                {lowStockProducts.map((prod) => (
+                {draftListings.map((prod) => (
                   <tr key={prod.id}>
                     <td>
                       <div className="product-row-info">
@@ -299,13 +297,9 @@ export default function AnalyticsDashboard() {
                       </div>
                     </td>
                     <td>{prod.category}</td>
-                    <td style={{ fontWeight: 700 }}>{prod.stock} items remaining</td>
+                    <td style={{ fontWeight: 600 }}>User #{prod.authorId}</td>
                     <td>
-                      {prod.stock === 0 ? (
-                        <span className="badge badge-danger">Out of Stock</span>
-                      ) : (
-                        <span className="badge badge-warning">Critically Low</span>
-                      )}
+                      <span className="badge badge-warning">Draft</span>
                     </td>
                   </tr>
                 ))}
@@ -313,7 +307,7 @@ export default function AnalyticsDashboard() {
             </table>
           ) : (
             <div style={{ textAlign: 'center', padding: '2rem 1rem', color: 'var(--clr-text-muted)', fontSize: '0.9rem' }}>
-              ✓ All products have healthy inventory levels (stock &ge; 5). No reorder alerts.
+              ✓ All platform posts are currently active and published. No pending drafts.
             </div>
           )}
         </div>

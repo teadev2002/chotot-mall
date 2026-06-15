@@ -1,6 +1,6 @@
 import React, { useContext } from 'react';
 import { ShopContext } from '../../context/ShopContext';
-import { Star, ShoppingCart, SlidersHorizontal, Eye } from 'lucide-react';
+import { SlidersHorizontal, Eye, MapPin, Calendar } from 'lucide-react';
 
 export default function ProductGrid() {
   const {
@@ -13,7 +13,7 @@ export default function ProductGrid() {
     setPriceRange,
     sortBy,
     setSortBy,
-    addToCart
+    formatPrice
   } = useContext(ShopContext);
 
   // Filter & Sort Logic
@@ -23,8 +23,8 @@ export default function ProductGrid() {
       if (selectedCategory !== 'All' && prod.category !== selectedCategory) {
         return false;
       }
-      // Price Filter
-      if (prod.price > priceRange) {
+      // Price Filter (only apply price filter if product has a price)
+      if (prod.price !== null && prod.price !== undefined && prod.price > priceRange) {
         return false;
       }
       // Search Filter
@@ -33,15 +33,17 @@ export default function ProductGrid() {
         return (
           prod.title.toLowerCase().includes(query) ||
           prod.description.toLowerCase().includes(query) ||
-          prod.category.toLowerCase().includes(query)
+          prod.category.toLowerCase().includes(query) ||
+          (prod.location && prod.location.toLowerCase().includes(query))
         );
       }
       return true;
     })
     .sort((a, b) => {
-      if (sortBy === 'price-low-high') return a.price - b.price;
-      if (sortBy === 'price-high-low') return b.price - a.price;
-      if (sortBy === 'rating') return b.rating - a.rating;
+      const aPrice = a.price !== null ? a.price : 0;
+      const bPrice = b.price !== null ? b.price : 0;
+      if (sortBy === 'price-low-high') return aPrice - bPrice;
+      if (sortBy === 'price-high-low') return bPrice - aPrice;
       return 0; // Default Featured (natural database order)
     });
 
@@ -53,17 +55,16 @@ export default function ProductGrid() {
       {!searchQuery && selectedCategory === 'All' && (
         <section className="hero-section">
           <div className="hero-content">
-            <span className="badge badge-primary" style={{ marginBottom: '1rem' }}>Summer Drop 2026</span>
-            <h1 className="hero-title">Elevate Your Everyday Essentials</h1>
+            <span className="badge badge-primary" style={{ marginBottom: '1rem' }}>Used Goods Marketplace</span>
+            <h1 className="hero-title">Buy & Sell Local Used Goods</h1>
             <p className="hero-subtitle">
-              Explore premium gear, lifestyle fashion, and cutting-edge tech gadgets curated just for you. Free shipping on orders over $150.
+              Browse listings in your community, contact sellers directly, and settle transactions safely in person. Post your items for free today!
             </p>
             <button className="btn btn-primary" onClick={() => document.getElementById('catalog-anchor')?.scrollIntoView({ behavior: 'smooth' })}>
-              Browse Collection
+              Browse Listings
             </button>
           </div>
           <div style={{ position: 'relative', width: '40%', height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {/* Visual aesthetic element */}
             <div style={{
               width: '180px',
               height: '180px',
@@ -90,9 +91,9 @@ export default function ProductGrid() {
               padding: '1.5rem',
               textAlign: 'center'
             }}>
-              <span style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>⚡</span>
-              <span style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--clr-text-primary)' }}>Up to 40% Off</span>
-              <span style={{ fontSize: '0.75rem', color: 'var(--clr-text-muted)' }}>Limited Stock Available</span>
+              <span style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🤝</span>
+              <span style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--clr-text-primary)' }}>C2C Exchange</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--clr-text-muted)' }}>Safe Offline Deals</span>
             </div>
           </div>
         </section>
@@ -102,7 +103,7 @@ export default function ProductGrid() {
       <div id="catalog-anchor" className="storefront-layout">
         {/* Sidebar Filters */}
         <aside className="catalog-sidebar">
-          <div className="sidebar-title">Filters</div>
+          <div className="sidebar-title">Filter Listings</div>
 
           {/* Categories Filter */}
           <div className="filter-section">
@@ -125,37 +126,38 @@ export default function ProductGrid() {
 
           {/* Price Range Filter */}
           {(() => {
-            const maxPriceVal = products.length > 0 ? Math.max(...products.map((p) => p.price), 1000) : 1000;
+            const maxPriceVal = products.length > 0 ? Math.max(...products.map((p) => p.price || 0), 1000) : 1000;
             return (
               <div className="filter-section">
                 <div className="filter-heading">
-                  Max Price: <span style={{ color: 'var(--clr-primary)', fontWeight: 700 }}>${priceRange.toLocaleString()}</span>
+                  Max Price: <span style={{ color: 'var(--clr-primary)', fontWeight: 700 }}>{formatPrice(priceRange)}</span>
                 </div>
                 <input
                   type="range"
                   min="0"
                   max={maxPriceVal}
-                  step={maxPriceVal > 100000 ? 50000 : maxPriceVal > 10000 ? 1000 : 10}
+                  step={maxPriceVal > 1000000 ? 500000 : maxPriceVal > 10000 ? 1000 : 10}
                   value={priceRange > maxPriceVal ? maxPriceVal : priceRange}
                   onChange={(e) => setPriceRange(Number(e.target.value))}
                   style={{ width: '100%', accentColor: 'var(--clr-primary)', cursor: 'pointer' }}
                 />
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--clr-text-muted)', marginTop: '0.25rem' }}>
-                  <span>$0</span>
-                  <span>${maxPriceVal.toLocaleString()}</span>
+                  <span>Min</span>
+                  <span>{formatPrice(maxPriceVal)}</span>
                 </div>
               </div>
             );
           })()}
 
           {/* Reset Filters button */}
-          {(selectedCategory !== 'All' || priceRange < 1000 || searchQuery) && (
+          {(selectedCategory !== 'All' || priceRange < 50000000 || searchQuery) && (
             <button
               className="btn btn-secondary"
               style={{ width: '100%', padding: '0.5rem', fontSize: '0.85rem' }}
               onClick={() => {
                 setSelectedCategory('All');
-                setPriceRange(1000);
+                setPriceRange(50000000);
+                setSearchQuery('');
               }}
             >
               Reset Filters
@@ -167,7 +169,7 @@ export default function ProductGrid() {
         <main className="catalog-content">
           <div className="catalog-header">
             <div style={{ color: 'var(--clr-text-secondary)', fontSize: '0.95rem' }}>
-              Showing <span style={{ fontWeight: 700, color: 'var(--clr-text-primary)' }}>{filteredProducts.length}</span> products
+              Showing <span style={{ fontWeight: 700, color: 'var(--clr-text-primary)' }}>{filteredProducts.length}</span> classified listings
             </div>
 
             {/* Sorting */}
@@ -182,7 +184,6 @@ export default function ProductGrid() {
                 <option value="featured">Sort by: Featured</option>
                 <option value="price-low-high">Price: Low to High</option>
                 <option value="price-high-low">Price: High to Low</option>
-                <option value="rating">Average Rating</option>
               </select>
             </div>
           </div>
@@ -191,73 +192,68 @@ export default function ProductGrid() {
           {filteredProducts.length > 0 ? (
             <div className="product-grid">
               {filteredProducts.map((prod) => {
-                const isOutOfStock = prod.stock <= 0;
-                const firstColor = prod.colors && prod.colors.length > 0 ? prod.colors[0] : '#000000';
-                const firstSize = prod.sizes && prod.sizes.length > 0 ? prod.sizes[0] : 'Standard';
+                const formattedDate = new Date(prod.createdAt).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric'
+                });
 
                 return (
                   <article key={prod.id} className="product-card anim-scale-in">
                     <div className="product-image-wrapper">
                       {/* Product badges overlay */}
                       <div className="product-badge-overlay">
-                        {isOutOfStock ? (
-                          <span className="badge badge-danger">Out of Stock</span>
-                        ) : prod.stock < 5 ? (
-                          <span className="badge badge-warning">Only {prod.stock} left</span>
-                        ) : (
-                          <span className="badge badge-primary">{prod.category}</span>
-                        )}
+                        <span className="badge badge-primary">{prod.category}</span>
                       </div>
                       <img src={prod.image} alt={prod.title} className="product-card-img" />
                     </div>
 
-                    <div className="product-card-info">
-                      <div className="product-card-category">{prod.category}</div>
+                    <div className="product-card-info" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 160px)' }}>
+                      <div className="product-card-category" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>{prod.category}</span>
+                        {prod.published === false && <span className="badge badge-warning" style={{ scale: '0.8' }}>Draft</span>}
+                      </div>
                       <h3
                         className="product-card-title"
                         onClick={() => setSelectedProductId(prod.id)}
-                        style={{ cursor: 'pointer' }}
+                        style={{ cursor: 'pointer', flex: '1', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
                         title={prod.title}
                       >
                         {prod.title}
                       </h3>
 
-                      {/* Ratings stars */}
-                      <div className="product-rating">
-                        <Star size={14} fill="currentColor" />
-                        <span>{prod.rating}</span>
-                        <span className="product-rating-count">({prod.reviewsCount})</span>
+                      {/* Location & Time Stamp for Classifieds */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', margin: '0.5rem 0', fontSize: '0.8rem', color: 'var(--clr-text-muted)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <MapPin size={12} style={{ color: 'var(--clr-primary)' }} />
+                          <span>{prod.location || 'Unknown Location'}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          <Calendar size={12} />
+                          <span>Posted: {formattedDate}</span>
+                        </div>
                       </div>
 
-                      <div className="product-card-footer">
-                        <span className="product-card-price" style={{ fontSize: '1rem' }}>
-                          {prod.price > 0 ? `$${prod.price.toLocaleString()}` : 'Contact for Price'}
+                      <div className="product-card-footer" style={{ borderTop: '1px solid var(--clr-border)', paddingTop: '0.5rem', marginTop: 'auto' }}>
+                        <span className="product-card-price" style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--clr-primary)' }}>
+                          {formatPrice(prod.price)}
                         </span>
                         
-                        <div style={{ display: 'flex', gap: '0.35rem' }}>
-                          <button
-                            className="icon-action-btn"
-                            title="Quick View"
-                            onClick={() => setSelectedProductId(prod.id)}
-                          >
-                            <Eye size={16} />
-                          </button>
-                          
-                          <button
-                            className="btn-primary btn"
-                            style={{
-                              width: '32px',
-                              height: '32px',
-                              padding: 0,
-                              borderRadius: 'var(--radius-sm)'
-                            }}
-                            disabled={isOutOfStock}
-                            onClick={() => addToCart(prod, firstColor, firstSize, 1)}
-                            title={isOutOfStock ? 'Out of Stock' : 'Quick Add to Cart'}
-                          >
-                            <ShoppingCart size={15} />
-                          </button>
-                        </div>
+                        <button
+                          className="btn btn-secondary"
+                          style={{
+                            padding: '0.35rem 0.75rem',
+                            fontSize: '0.8rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            borderRadius: 'var(--radius-sm)'
+                          }}
+                          onClick={() => setSelectedProductId(prod.id)}
+                          title="View Details"
+                        >
+                          <Eye size={14} />
+                          Details
+                        </button>
                       </div>
                     </div>
                   </article>
@@ -267,9 +263,9 @@ export default function ProductGrid() {
           ) : (
             <div style={{ textAlign: 'center', padding: '5rem 2rem', background: 'var(--clr-bg-card)', borderRadius: 'var(--radius-md)', border: '1px solid var(--clr-border)' }}>
               <span style={{ fontSize: '3rem' }}>🔍</span>
-              <h3 style={{ marginTop: '1rem', fontSize: '1.25rem' }}>No products match your filters</h3>
+              <h3 style={{ marginTop: '1rem', fontSize: '1.25rem' }}>No listings match your filters</h3>
               <p style={{ color: 'var(--clr-text-muted)', fontSize: '0.9rem', marginTop: '0.5rem' }}>
-                Try adjusting your search criteria, price range, or categories sidebar.
+                Try adjusting your search criteria, category choice, or price range.
               </p>
             </div>
           )}

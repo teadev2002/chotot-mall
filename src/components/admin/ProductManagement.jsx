@@ -64,11 +64,23 @@ export default function ProductManagement() {
   );
 
   // Helper to map categoryId to category text
+  // Helper to map categoryId to category text
   const getCategoryName = (catId) => {
     const id = Number(catId);
     if (id === 1) return 'Electronics';
     if (id === 2) return 'Fashion';
     return 'Accessories';
+  };
+
+  // Local price formatter matching storefront
+  const formatPrice = (price) => {
+    if (price === null || price === undefined) return 'Contact for Price';
+    const numPrice = Number(price);
+    if (isNaN(numPrice)) return 'Contact for Price';
+    if (numPrice >= 1000) {
+      return `${numPrice.toLocaleString('vi-VN')} ₫`;
+    }
+    return `$${numPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
   };
 
   // Open modal for Creating new post
@@ -265,7 +277,7 @@ export default function ProductManagement() {
                         </span>
                       </td>
                       <td style={{ fontWeight: 700, color: 'var(--clr-text-primary)' }}>
-                        {post.price !== null && post.price !== undefined ? `$${Number(post.price).toFixed(2)}` : 'N/A'}
+                        {formatPrice(post.price)}
                       </td>
                       <td style={{ fontSize: '0.85rem', color: 'var(--clr-text-secondary)' }}>
                         {post.length || post.width || post.height ? (

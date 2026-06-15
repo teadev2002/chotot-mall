@@ -6,18 +6,16 @@ import Footer from './components/Footer';
 // Storefront Components
 import ProductGrid from './components/storefront/ProductGrid';
 import ProductDetail from './components/storefront/ProductDetail';
-import CartDrawer from './components/storefront/CartDrawer';
-import Checkout from './components/storefront/Checkout';
+import UserListings from './components/storefront/UserListings';
 import AuthModal from './components/storefront/AuthModal';
 
 // Admin Components
 import AnalyticsDashboard from './components/admin/AnalyticsDashboard';
 import ProductManagement from './components/admin/ProductManagement';
-import OrderManagement from './components/admin/OrderManagement';
 import CustomerManagement from './components/admin/CustomerManagement';
 
 // Icons for Admin Navigation
-import { LayoutDashboard, ShoppingBag, ShoppingCart, Users, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, ShoppingBag, Users, ChevronRight } from 'lucide-react';
 
 function App() {
   const {
@@ -33,6 +31,9 @@ function App() {
     if (selectedProductId !== null) {
       return <ProductDetail />;
     }
+    if (view === 'user-listings') {
+      return <UserListings />;
+    }
     return <ProductGrid />;
   };
 
@@ -43,8 +44,6 @@ function App() {
         return <AnalyticsDashboard />;
       case 'products':
         return <ProductManagement />;
-      case 'orders':
-        return <OrderManagement />;
       case 'customers':
         return <CustomerManagement />;
       default:
@@ -59,10 +58,8 @@ function App() {
 
       {/* Main View Router */}
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {view === 'storefront' && renderStorefrontContent()}
+        {(view === 'storefront' || view === 'user-listings') && renderStorefrontContent()}
         
-        {view === 'checkout' && <Checkout />}
-
         {view === 'admin' && (
           <div className="admin-shell">
             {/* Admin Sidebar Dashboard Switcher */}
@@ -86,20 +83,11 @@ function App() {
               </div>
               
               <div
-                className={`admin-nav-item ${adminTab === 'orders' ? 'active' : ''}`}
-                onClick={() => setAdminTab('orders')}
-              >
-                <ShoppingCart size={18} />
-                Order Tracking
-                <ChevronRight size={14} style={{ marginLeft: 'auto', opacity: adminTab === 'orders' ? 1 : 0 }} />
-              </div>
-              
-              <div
                 className={`admin-nav-item ${adminTab === 'customers' ? 'active' : ''}`}
                 onClick={() => setAdminTab('customers')}
               >
                 <Users size={18} />
-                Customers Database
+                User Database
                 <ChevronRight size={14} style={{ marginLeft: 'auto', opacity: adminTab === 'customers' ? 1 : 0 }} />
               </div>
             </aside>
@@ -111,9 +99,6 @@ function App() {
           </div>
         )}
       </main>
-
-      {/* Shopping Drawer (slides over storefront when trigger button is clicked) */}
-      <CartDrawer />
 
       {/* Authentication Modal Overlay */}
       <AuthModal />

@@ -1,6 +1,6 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { ShopContext } from '../context/ShopContext';
-import { Sun, Moon, ShoppingCart, LayoutDashboard, ShoppingBag, Search, User, LogOut } from 'lucide-react';
+import { Sun, Moon, ShoppingBag, Search, User } from 'lucide-react';
 
 export default function Header() {
   const {
@@ -8,29 +8,21 @@ export default function Header() {
     toggleTheme,
     view,
     setView,
-    cart,
-    setIsCartOpen,
     searchQuery,
     setSearchQuery,
     setSelectedProductId,
     currentUser,
     setIsAuthModalOpen,
-    logout
+    logout,
+    loadUserListings
   } = useContext(ShopContext);
 
-  const cartItemsCount = cart.reduce((total, item) => total + item.qty, 0);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const handleLogoClick = () => {
     setView('storefront');
     setSelectedProductId(null);
-  };
-
-  const handleViewToggle = () => {
-    if (view === 'storefront') {
-      setView('admin');
-    } else {
-      setView('storefront');
-    }
+    window.history.pushState(null, '', '/');
   };
 
   return (
@@ -39,7 +31,7 @@ export default function Header() {
         {/* Brand Logo */}
         <div className="logo" onClick={handleLogoClick} style={{ cursor: 'pointer' }}>
           <ShoppingBag size={24} strokeWidth={2.5} style={{ color: 'hsl(var(--primary))' }} />
-          Chotot Mall
+          Chợ Tốt
           <span className="logo-dot"></span>
         </div>
 
@@ -49,7 +41,7 @@ export default function Header() {
           <input
             type="text"
             className="search-input"
-            placeholder="Search products by title, details..."
+            placeholder="Search posts by title, location, category..."
             value={searchQuery}
             onChange={(e) => {
               setSearchQuery(e.target.value);
@@ -73,24 +65,11 @@ export default function Header() {
             {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
           </button>
 
-          {/* Cart Icon (Only available in Storefront view) */}
-          {view === 'storefront' && (
-            <button
-              className="theme-switch icon-btn-badge"
-              onClick={() => setIsCartOpen(true)}
-              title="Open Cart"
-            >
-              <ShoppingCart size={20} />
-              {cartItemsCount > 0 && (
-                <span className="badge-count anim-scale-in">{cartItemsCount}</span>
-              )}
-            </button>
-          )}
-
           {/* Sign In / Sign Up Trigger OR Profile controls */}
           {currentUser ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
                 title={`Logged in as ${currentUser.name} (${currentUser.email})`}
                 style={{
                   width: '38px',
@@ -104,21 +83,121 @@ export default function Header() {
                   fontWeight: 700,
                   fontSize: '0.85rem',
                   border: '1px solid var(--clr-border)',
-                  cursor: 'default',
-                  userSelect: 'none'
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  padding: 0
                 }}
               >
                 {currentUser.name.charAt(0).toUpperCase()}
-              </div>
-              <button
-                className="theme-switch"
-                style={{ width: '38px', height: '38px' }}
-                onClick={logout}
-                title="Sign Out"
-                aria-label="Sign Out"
-              >
-                <LogOut size={16} />
               </button>
+
+              {isDropdownOpen && (
+                <>
+                  {/* Invisible backdrop to close dropdown on click outside */}
+                  <div
+                    onClick={() => setIsDropdownOpen(false)}
+                    style={{
+                      position: 'fixed',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      zIndex: 998
+                    }}
+                  />
+                  <div
+                    className="anim-scale-in"
+                    style={{
+                      position: 'absolute',
+                      right: 0,
+                      top: 'calc(100% + 8px)',
+                      background: 'var(--clr-bg-card)',
+                      border: '1px solid var(--clr-border)',
+                      borderRadius: 'var(--radius-md)',
+                      boxShadow: 'var(--shadow-lg)',
+                      padding: '0.5rem 0',
+                      minWidth: '180px',
+                      zIndex: 999,
+                      display: 'flex',
+                      flexDirection: 'column'
+                    }}
+                  >
+                    <div style={{ padding: '0.5rem 1rem', borderBottom: '1px solid var(--clr-border)', marginBottom: '0.25rem' }}>
+                      <div style={{ fontWeight: 'bold', fontSize: '0.85rem', color: 'var(--clr-text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {currentUser.name}
+                      </div>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--clr-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {currentUser.email}
+                      </div>
+                    </div>
+                    
+                    <button
+                      style={{
+                        padding: '0.5rem 1rem',
+                        background: 'none',
+                        border: 'none',
+                        textAlign: 'left',
+                        color: 'var(--clr-text-primary)',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        width: '100%'
+                      }}
+                      className="dropdown-item"
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        loadUserListings(currentUser.id);
+                      }}
+                    >
+                      My Listings
+                    </button>
+                    
+                    {currentUser.role === 'ADMIN' && (
+                      <button
+                        style={{
+                          padding: '0.5rem 1rem',
+                          background: 'none',
+                          border: 'none',
+                          textAlign: 'left',
+                          color: 'var(--clr-text-primary)',
+                          cursor: 'pointer',
+                          fontSize: '0.85rem',
+                          width: '100%'
+                        }}
+                        className="dropdown-item"
+                        onClick={() => {
+                          setIsDropdownOpen(false);
+                          setView('admin');
+                        }}
+                      >
+                        Admin Panel
+                      </button>
+                    )}
+                    
+                    <div style={{ height: '1px', background: 'var(--clr-border)', margin: '0.25rem 0' }}></div>
+                    
+                    <button
+                      style={{
+                        padding: '0.5rem 1rem',
+                        background: 'none',
+                        border: 'none',
+                        textAlign: 'left',
+                        color: 'var(--clr-danger)',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        width: '100%',
+                        fontWeight: 600
+                      }}
+                      className="dropdown-item"
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        logout();
+                      }}
+                    >
+                      Sign Out
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           ) : (
             <button
