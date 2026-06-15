@@ -21,6 +21,40 @@ const decodeJwt = (token) => {
   }
 };
 
+// Cookie helper functions
+const setCookie = (name, value, days = 7) => {
+  const expires = new Date(Date.now() + days * 864e5).toUTCString();
+  document.cookie = `${name}=${encodeURIComponent(value)}; expires=${expires}; path=/; SameSite=Lax; Secure`;
+};
+
+const getCookie = (name) => {
+  // Ưu tiên cookie không HttpOnly
+  let val = getRawCookie('accessToken_frontend');
+  if (val) return val;
+
+  val = getRawCookie('accessToken');
+  if (val) return val;
+
+  return null;
+};
+
+const getRawCookie = (name) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) {
+    let val = parts.pop().split(';').shift();
+    try {
+      return decodeURIComponent(val);
+    } catch {
+      return val;
+    }
+  }
+  return null;
+};
+const deleteCookie = (name) => {
+  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; SameSite=Lax`;
+};
+
 // Seed Customers/Users database fallback metadata
 const SEED_CUSTOMERS = [
   { id: 1, name: 'Sarah Parker', email: 'sarah.p@example.com', joinedDate: '2026-01-15', location: 'District 1, HCMC' },
@@ -29,12 +63,15 @@ const SEED_CUSTOMERS = [
 ];
 
 export const ShopProvider = ({ children }) => {
+
   // Theme & View States
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
+  const [theme, setTheme] = useState(() => getCookie('theme') || 'light');
   const [view, setView] = useState(() => {
-    const token = localStorage.getItem('accessToken');
+    const token = getCookie('accessToken');
     if (token) {
-      const decoded = decodeJwt(token);
+      let cleanToken = decodeURIComponent(token).trim();
+      cleanToken = cleanToken.replace(/^["']|["']$/g, '').trim();
+      const decoded = decodeJwt(cleanToken);
       if (decoded && decoded.role === 'ADMIN' && decoded.exp * 1000 > Date.now()) {
         return 'admin';
       }
@@ -46,8 +83,13 @@ export const ShopProvider = ({ children }) => {
   // Data States
   const [products, setProducts] = useState([]); // Will store API posts
   const [customers, setCustomers] = useState(() => {
-    const local = localStorage.getItem('customers');
-    return local ? JSON.parse(local) : SEED_CUSTOMERS;
+    try {
+      const local = getCookie('customers');
+      return local ? JSON.parse(local) : SEED_CUSTOMERS;
+    } catch (e) {
+      console.error('Failed to parse customers cookie:', e);
+      return SEED_CUSTOMERS;
+    }
   });
   const [userListings, setUserListings] = useState([]);
   const [userProfile, setUserProfile] = useState(null);
@@ -55,8 +97,12 @@ export const ShopProvider = ({ children }) => {
 
   // Users Auth States
   const [users, setUsers] = useState(() => {
-    const local = localStorage.getItem('users');
-    if (local) return JSON.parse(local);
+    try {
+      const local = getCookie('users');
+      if (local) return JSON.parse(local);
+    } catch (e) {
+      console.error('Failed to parse users cookie:', e);
+    }
     return [
       { id: 1, name: 'Sarah Parker', email: 'sarah.p@example.com', password: 'password123' },
       { id: 2, name: 'David Smith', email: 'dsmith@example.com', password: 'password123' },
@@ -65,23 +111,24 @@ export const ShopProvider = ({ children }) => {
   });
 
   const [currentUser, setCurrentUser] = useState(() => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      const decoded = decodeJwt(token);
-      if (decoded && decoded.exp * 1000 > Date.now()) {
-        const email = decoded.email || localStorage.getItem('currentUserEmail') || 'user@example.com';
-        return {
-          id: decoded.sub,
-          name: email.split('@')[0],
-          email: email,
-          role: decoded.role,
-          token: token
-        };
-      } else {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('currentUserEmail');
-      }
+    const token = getCookie('accessToken');
+    if (!token) return null;
+
+    let cleanToken = decodeURIComponent(token).trim();
+    cleanToken = cleanToken.replace(/^["']|["']$/g, '').trim();
+
+    const decoded = decodeJwt(cleanToken);
+    if (decoded && decoded.exp * 1000 > Date.now()) {
+      const email = decoded.email || getCookie('currentUserEmail') || 'user@example.com';
+      return {
+        id: decoded.sub,
+        name: decoded.name || email.split('@')[0],
+        email,
+        role: decoded.role || 'CUSTOMER',
+        token: cleanToken
+      };
     }
+    deleteCookie('accessToken');
     return null;
   });
 
@@ -96,79 +143,129 @@ export const ShopProvider = ({ children }) => {
   const [priceRange, setPriceRange] = useState(50000000); // 50M VND limit for classifieds
   const [sortBy, setSortBy] = useState('featured');
 
-  // Sync state to local storage
+
+  const apiFetch = async (url, options = {}) => {
+    const token = getCookie('accessToken');
+
+    const headers = {
+      'accept': '*/*',
+      ...options.headers
+    };
+
+    // Chỉ thêm Content-Type nếu không phải FormData
+    if (!(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
+
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const config = {
+      ...options,
+      headers
+    };
+
+    return fetch(url, config);
+  };
+  // Sync state to cookies
   useEffect(() => {
-    localStorage.setItem('products', JSON.stringify(products));
+    setCookie('products', JSON.stringify(products));
   }, [products]);
 
   useEffect(() => {
-    localStorage.setItem('customers', JSON.stringify(customers));
+    setCookie('customers', JSON.stringify(customers));
   }, [customers]);
 
   useEffect(() => {
-    localStorage.setItem('users', JSON.stringify(users));
+    setCookie('users', JSON.stringify(users));
   }, [users]);
 
   // Handle Theme Toggle
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('theme', theme);
+    setCookie('theme', theme);
   }, [theme]);
 
-  // On startup, check for accessToken in document.cookie (from Google OAuth redirection)
+  // On startup, check for accessToken in URL parameters, hash fragments, or document.cookie (from Google OAuth redirection)
+  // On startup + after Google OAuth redirect
   useEffect(() => {
-    const getCookie = (name) => {
-      const value = `; ${document.cookie}`;
-      const parts = value.split(`; ${name}=`);
-      if (parts.length === 2) return parts.pop().split(';').shift();
-      return null;
+    const handleAuthCallback = async () => {
+      let rawToken = null;
+
+      // 1. URL query
+      const urlParams = new URLSearchParams(window.location.search);
+      rawToken = urlParams.get('accessToken') || urlParams.get('token') || urlParams.get('access_token');
+
+      // 2. Hash fragment (Implicit flow)
+      if (!rawToken && window.location.hash) {
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        rawToken = hashParams.get('accessToken') || hashParams.get('token') || hashParams.get('access_token');
+      }
+
+      // 3. Cookie (ưu tiên cao nhất hiện tại)
+      if (!rawToken) {
+        rawToken = getCookie('accessToken');
+      }
+
+      // 4. Backend code exchange nếu có code
+      const oauthCode = urlParams.get('code');
+      if (!rawToken && oauthCode && window.location.pathname.includes('callback')) {
+        try {
+          const response = await apiFetch(`https://cho-tot-production.up.railway.app/auth/google/callback${window.location.search}`);
+
+          if (response.ok) {
+            const data = await response.json();
+            rawToken = data?.data?.accessToken || data?.accessToken || data?.token;
+          }
+        } catch (err) {
+          console.error('Code exchange failed:', err);
+        }
+      }
+
+      // Clean URL
+      if (window.location.search || window.location.hash || window.location.pathname.includes('callback')) {
+        window.history.replaceState({}, document.title, '/');
+      }
+
+      if (rawToken) {
+        try {
+          let cleanToken = decodeURIComponent(rawToken).trim();
+          cleanToken = cleanToken.replace(/^["']|["']$/g, '').trim();
+
+          const decoded = decodeJwt(cleanToken);
+          if (!decoded) {
+            console.error('Failed to decode token');
+            return;
+          }
+
+          const role = decoded.role || 'CUSTOMER';
+          const email = decoded.email || `user-${decoded.sub}@gmail.com`;
+          const name = decoded.name || email.split('@')[0];
+
+          setCookie('accessToken', cleanToken);
+          setCookie('currentUserEmail', email);
+
+          const loggedUser = {
+            id: decoded.sub,
+            name,
+            email,
+            role,
+            token: cleanToken
+          };
+
+          setCurrentUser(loggedUser);
+          setView(role === 'ADMIN' ? 'admin' : 'storefront');
+
+          console.log('✅ Google login success:', loggedUser);
+        } catch (err) {
+          console.error('Error processing token:', err);
+        }
+      }
     };
 
-    const cookieToken = getCookie('accessToken');
-    if (cookieToken) {
-      const decoded = decodeJwt(cookieToken);
-      if (decoded && decoded.exp * 1000 > Date.now()) {
-        const role = decoded.role || 'CUSTOMER';
-        const email = decoded.email || `google-user-${decoded.sub}@gmail.com`;
-
-        localStorage.setItem('accessToken', cookieToken);
-        localStorage.setItem('currentUserEmail', email);
-
-        const loggedUser = {
-          id: decoded.sub,
-          name: email.split('@')[0],
-          email: email,
-          role: role,
-          token: cookieToken
-        };
-
-        setCurrentUser(loggedUser);
-
-        // Redirect based on role
-        if (role === 'ADMIN') {
-          setView('admin');
-        } else {
-          setView('storefront');
-        }
-
-        // Register in customers list if not exists
-        setCustomers((prevCusts) => {
-          const exists = prevCusts.find((c) => c.email.toLowerCase() === email.toLowerCase());
-          if (exists) return prevCusts;
-          return [
-            ...prevCusts,
-            {
-              id: prevCusts.length + 1,
-              name: email.split('@')[0],
-              email: email,
-              joinedDate: new Date().toISOString().split('T')[0],
-              location: 'Hanoi, Vietnam'
-            }
-          ];
-        });
-      }
-    }
-  }, []);
+    handleAuthCallback();
+  }, []); // vẫn giữ empty dependency
 
   // Restore user-listings view on refresh if pathname matches currentUser.name
   useEffect(() => {
@@ -187,7 +284,7 @@ export const ShopProvider = ({ children }) => {
   useEffect(() => {
     const fetchStorefrontPosts = async () => {
       try {
-        const response = await fetch('https://cho-tot-production.up.railway.app/post/all');
+        const response = await apiFetch('https://cho-tot-production.up.railway.app/post/all');
         if (!response.ok) throw new Error('API failed');
         const resData = await response.json();
         if (resData.success && Array.isArray(resData.data)) {
@@ -218,11 +315,11 @@ export const ShopProvider = ({ children }) => {
             authorId: post.authorId,
             categoryId: post.categoryId,
             category: post.categoryId === 1 ? 'Electronics' : post.categoryId === 2 ? 'Fashion' : 'Accessories',
-            image: post.categoryId === 1 
+            image: post.categoryId === 1
               ? 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop'
               : post.categoryId === 2
-              ? 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=600&auto=format&fit=crop'
-              : 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=600&auto=format&fit=crop',
+                ? 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=600&auto=format&fit=crop'
+                : 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=600&auto=format&fit=crop',
             location: LOCATIONS[post.id % LOCATIONS.length]
           }));
           setProducts(mapped);
@@ -244,7 +341,7 @@ export const ShopProvider = ({ children }) => {
     if (price === null || price === undefined) return 'Contact for Price';
     const numPrice = Number(price);
     if (isNaN(numPrice)) return 'Contact for Price';
-    
+
     // Large prices (>= 1000) display as Vietnamese Dong (VND), others as USD
     if (numPrice >= 1000) {
       return `${numPrice.toLocaleString('vi-VN')} ₫`;
@@ -256,21 +353,10 @@ export const ShopProvider = ({ children }) => {
   const loadUserListings = async (userId) => {
     setUserListingsLoading(true);
     try {
-      const token = localStorage.getItem('accessToken');
-      const headers = {
-        'accept': '*/*'
-      };
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-
-      // 1. Get user profile
-      const userRes = await fetch(`https://cho-tot-production.up.railway.app/user/get-user-by-id?id=${userId}`, {
-        headers
-      });
+      const userRes = await apiFetch(`https://cho-tot-production.up.railway.app/user/get-user-by-id?id=${userId}`);
       if (!userRes.ok) throw new Error('Failed to fetch user profile');
       const userJSON = await userRes.json();
-      
+
       let userName = `User ${userId}`;
       if (userJSON.success && userJSON.data) {
         setUserProfile(userJSON.data);
@@ -282,9 +368,7 @@ export const ShopProvider = ({ children }) => {
       window.history.pushState({ userId, view: 'user-listings' }, '', urlPath);
 
       // 2. Get user posts
-      const postsRes = await fetch(`https://cho-tot-production.up.railway.app/post/get-all-post-by-user-id?id=${userId}`, {
-        headers
-      });
+      const postsRes = await apiFetch(`https://cho-tot-production.up.railway.app/post/get-all-post-by-user-id?id=${userId}`);
       if (!postsRes.ok) throw new Error('Failed to fetch user posts');
       const postsJSON = await postsRes.json();
 
@@ -315,11 +399,11 @@ export const ShopProvider = ({ children }) => {
           authorId: post.authorId,
           categoryId: post.categoryId,
           category: post.categoryId === 1 ? 'Electronics' : post.categoryId === 2 ? 'Fashion' : 'Accessories',
-          image: post.categoryId === 1 
+          image: post.categoryId === 1
             ? 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop'
             : post.categoryId === 2
-            ? 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=600&auto=format&fit=crop'
-            : 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=600&auto=format&fit=crop',
+              ? 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=600&auto=format&fit=crop'
+              : 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=600&auto=format&fit=crop',
           location: LOCATIONS[post.id % LOCATIONS.length]
         }));
         setUserListings(mapped);
@@ -359,14 +443,11 @@ export const ShopProvider = ({ children }) => {
   };
 
   // Sign In / Sign Up Handlers
+  // Sign In / Sign Up Handlers
   const signIn = async (email, password) => {
     try {
-      const response = await fetch('https://cho-tot-production.up.railway.app/auth/login', {
+      const response = await apiFetch('https://cho-tot-production.up.railway.app/auth/login', {
         method: 'POST',
-        headers: {
-          'accept': '*/*',
-          'Content-Type': 'application/json'
-        },
         body: JSON.stringify({
           email: email.trim(),
           password: password
@@ -377,26 +458,21 @@ export const ShopProvider = ({ children }) => {
         let errorMsg = 'Invalid email or password.';
         try {
           const errData = await response.json();
-          if (errData && errData.message) {
-            errorMsg = errData.message;
-          } else if (errData && errData.error) {
-            errorMsg = errData.error;
-          }
-        } catch (e) {
-          // ignore
-        }
+          if (errData && errData.message) errorMsg = errData.message;
+          else if (errData && errData.error) errorMsg = errData.error;
+        } catch (e) { }
         return { success: false, message: errorMsg };
       }
 
       const data = await response.json();
       const token = data.data?.accessToken || data.accessToken || data.token || data.data?.token;
-      
+
       if (!token) {
         return { success: false, message: 'Access token not returned from server.' };
       }
 
-      localStorage.setItem('accessToken', token);
-      localStorage.setItem('currentUserEmail', email.trim());
+      setCookie('accessToken', token);
+      setCookie('currentUserEmail', email.trim());
 
       const decoded = decodeJwt(token);
       if (!decoded) {
@@ -480,8 +556,8 @@ export const ShopProvider = ({ children }) => {
 
   const logout = () => {
     setCurrentUser(null);
-    localStorage.removeItem('accessToken');
-    localStorage.removeItem('currentUserEmail');
+    deleteCookie('accessToken');
+    deleteCookie('currentUserEmail');
     setView('storefront');
   };
 

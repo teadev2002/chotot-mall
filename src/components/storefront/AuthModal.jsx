@@ -309,7 +309,9 @@ export default function AuthModal() {
               borderRadius: 'var(--radius-sm)',
               border: '1px solid var(--clr-border)'
             }}
-            onClick={() => {
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
               window.location.href = "https://cho-tot-production.up.railway.app/auth/google/login";
             }}
           >
