@@ -1,0 +1,92 @@
+:root {
+  /* Fonts */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-heading: 'Outfit', var(--font-sans);
+
+  /* Shared Tokens */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-full: 9999px;
+
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Light Theme (Default) */
+  --primary: 220 85% 55%; /* Royal Blue */
+  --secondary: 260 80% 60%; /* Indigo */
+  --success: 142 70% 45%; /* Green */
+  --warning: 38 92% 50%; /* Yellow/Orange */
+  --danger: 346 84% 54%; /* Red */
+  
+  --bg-app: 210 20% 98%;
+  --bg-card: 0 0% 100%;
+  --bg-popover: 0 0% 100%;
+  --bg-header: 0 0% 100% / 0.8;
+  
+  --text-primary: 220 40% 12%;
+  --text-secondary: 220 12% 45%;
+  --text-muted: 220 10% 65%;
+  --text-light: 0 0% 100%;
+
+  --border-light: 220 15% 90%;
+  --border-focus: 220 85% 65%;
+  
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.06), 0 4px 8px rgba(0, 0, 0, 0.03);
+  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.08), 0 8px 16px rgba(0, 0, 0, 0.04);
+
+  --glass-bg: rgba(255, 255, 255, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.4);
+  --glass-blur: blur(12px);
+
+  /* HSL Helpers */
+  --clr-primary: hsl(var(--primary));
+  --clr-primary-light: hsla(var(--primary), 0.1);
+  --clr-secondary: hsl(var(--secondary));
+  --clr-secondary-light: hsla(var(--secondary), 0.1);
+  --clr-success: hsl(var(--success));
+  --clr-success-light: hsla(var(--success), 0.1);
+  --clr-warning: hsl(var(--warning));
+  --clr-warning-light: hsla(var(--warning), 0.1);
+  --clr-danger: hsl(var(--danger));
+  --clr-danger-light: hsla(var(--danger), 0.1);
+  --clr-bg-app: hsl(var(--bg-app));
+  --clr-bg-card: hsl(var(--bg-card));
+  --clr-text-primary: hsl(var(--text-primary));
+  --clr-text-secondary: hsl(var(--text-secondary));
+  --clr-text-muted: hsl(var(--text-muted));
+  --clr-border: hsl(var(--border-light));
+  --clr-bg-header: hsla(var(--bg-header));
+}
+
+[data-theme='dark'] {
+  /* Dark Theme */
+  --bg-app: 222 25% 8%; /* Midnight navy */
+  --bg-card: 222 22% 12%; /* Card background */
+  --bg-popover: 222 22% 14%;
+  --bg-header: 222 25% 8% / 0.8;
+
+  --text-primary: 210 20% 98%;
+  --text-secondary: 218 12% 78%;
+  --text-muted: 218 10% 55%;
+
+  --border-light: 222 20% 18%;
+  
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.15);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.2);
+  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.5), 0 8px 16px rgba(0, 0, 0, 0.25);
+
+  --glass-bg: rgba(15, 23, 42, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.06);
+
+  --clr-primary-light: hsla(var(--primary), 0.2);
+  --clr-secondary-light: hsla(var(--secondary), 0.2);
+  --clr-success-light: hsla(var(--success), 0.2);
+  --clr-warning-light: hsla(var(--warning), 0.2);
+  --clr-danger-light: hsla(var(--danger), 0.2);
+}
