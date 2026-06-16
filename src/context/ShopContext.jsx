@@ -223,9 +223,24 @@ export const ShopProvider = ({ children }) => {
         }
       }
 
-      // Clean URL
-      if (window.location.search || window.location.hash || window.location.pathname.includes('callback')) {
-        window.history.replaceState({}, document.title, '/');
+      // Clean URL: only if we processed auth info from the URL, hash, or callback path
+      const cleanParams = new URLSearchParams(window.location.search);
+      const hasAuthParams = cleanParams.has('accessToken') || cleanParams.has('token') || cleanParams.has('access_token') || cleanParams.has('code');
+      const isCallbackPath = window.location.pathname.includes('callback');
+      const hasAuthHash = window.location.hash && (window.location.hash.includes('accessToken') || window.location.hash.includes('token') || window.location.hash.includes('access_token'));
+
+      if (hasAuthParams || isCallbackPath || hasAuthHash) {
+        // Remove auth-related query parameters
+        cleanParams.delete('accessToken');
+        cleanParams.delete('token');
+        cleanParams.delete('access_token');
+        cleanParams.delete('code');
+
+        const newSearch = cleanParams.toString();
+        const cleanPath = (isCallbackPath ? '/' : window.location.pathname) + (newSearch ? `?${newSearch}` : '');
+        const cleanHash = hasAuthHash ? '' : window.location.hash;
+
+        window.history.replaceState({}, document.title, cleanPath + cleanHash);
       }
 
       if (rawToken) {
