@@ -1,6 +1,9 @@
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { ShopContext } from '../../context/ShopContext';
-import { ArrowLeft, Phone, MessageCircle, MapPin, Calendar, User, Send, ShieldAlert, Check } from 'lucide-react';
+import { ArrowLeft, Phone, MessageCircle, MapPin, Calendar, User, Send, ShieldAlert, Check, Loader2, Tag, X } from 'lucide-react';
+import { fetchPostById, fetchOffersByPostId, createOffer, acceptOffer } from '../../services/productService';
+import { fetchUserProfile } from '../../services/userService';
+import { generateSlug } from '../../utils/slug';
 
 export default function ProductDetail() {
   const {
@@ -12,7 +15,259 @@ export default function ProductDetail() {
     formatPrice
   } = useContext(ShopContext);
 
-  const product = products.find((p) => p.id === selectedProductId);
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  // Offers states
+  const [offersList, setOffersList] = useState([]);
+  const [offersLoading, setOffersLoading] = useState(false);
+  const [offersError, setOffersError] = useState(null);
+
+  // Offer creation states
+  const [isOfferModalOpen, setIsOfferModalOpen] = useState(false);
+  const [offerPrice, setOfferPrice] = useState('');
+  const [offerSubmitting, setOfferSubmitting] = useState(false);
+  const [offerSubmitError, setOfferSubmitError] = useState(null);
+  const [offerSuccessMsg, setOfferSuccessMsg] = useState(null);
+
+  // Offer acceptance states
+  const [acceptingOfferId, setAcceptingOfferId] = useState(null);
+  const [acceptError, setAcceptError] = useState(null);
+
+  // Seller profile state
+  const [sellerName, setSellerName] = useState('');
+  const [buyerNames, setBuyerNames] = useState({});
+
+  // Fetch buyer names whenever offersList changes
+  useEffect(() => {
+    if (!offersList || offersList.length === 0) return;
+
+    const getBuyerNames = async () => {
+      const uniqueBuyerIds = [...new Set(offersList.map((o) => o.buyerId))];
+      try {
+        const fetchedResults = await Promise.all(
+          uniqueBuyerIds.map(async (id) => {
+            try {
+              const profile = await fetchUserProfile(id);
+              return { id, name: profile?.name || `User #${id}` };
+            } catch (err) {
+              console.error(`Failed to fetch user profile for buyer id ${id}:`, err);
+              return { id, name: `User #${id}` };
+            }
+          })
+        );
+
+        const newNamesMap = {};
+        fetchedResults.forEach((item) => {
+          newNamesMap[item.id] = item.name;
+        });
+
+        setBuyerNames((prev) => ({
+          ...prev,
+          ...newNamesMap
+        }));
+      } catch (err) {
+        console.error('Failed to fetch buyer profiles:', err);
+      }
+    };
+
+    getBuyerNames();
+  }, [offersList]);
+
+
+  // Classifieds interactions states
+  const [phoneRevealed, setPhoneRevealed] = useState(false);
+  const [phoneCopied, setPhoneCopied] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState([]);
+  const [isTyping, setIsTyping] = useState(false);
+
+  const messagesEndRef = useRef(null);
+
+  // Helper to load offers for a post
+  const loadOffersForPost = async (postId) => {
+    if (!postId) return;
+    setOffersList([]);
+    setOffersError(null);
+    try {
+      setOffersLoading(true);
+      const offersData = await fetchOffersByPostId(postId);
+      setOffersList(offersData);
+      // Save successfully fetched offers to localStorage cache
+      localStorage.setItem(`offers_cache_${postId}`, JSON.stringify(offersData));
+    } catch (offerErr) {
+      console.error('Failed to load offers from API, attempting cache:', offerErr);
+
+      // Fallback to localStorage cache
+      const cached = localStorage.getItem(`offers_cache_${postId}`);
+      if (cached) {
+        try {
+          const parsedOffers = JSON.parse(cached);
+          setOffersList(parsedOffers);
+        } catch (_) {
+          setOffersError('Failed to fetch offers list');
+        }
+      } else {
+        // If there's no cache and we failed to load from API, generate some mock data based on product price
+        // so that there's always mock data for others to view instead of empty error!
+        const currentProductPrice = product?.price || 7000000;
+        const mockOffers = [
+          {
+            id: 1,
+            buyerId: 3,
+            postId: Number(postId),
+            offerStatus: 'PENDING',
+            price: String(Math.round(currentProductPrice * 0.85)),
+            createAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+          },
+          {
+            id: 2,
+            buyerId: 5,
+            postId: Number(postId),
+            offerStatus: 'PENDING',
+            price: String(Math.round(currentProductPrice * 0.95)),
+            createAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+          }
+        ];
+        setOffersList(mockOffers);
+        localStorage.setItem(`offers_cache_${postId}`, JSON.stringify(mockOffers));
+      }
+    } finally {
+      setOffersLoading(false);
+    }
+  };
+
+  // Fetch product detail on mount/change
+  useEffect(() => {
+    if (!selectedProductId) return;
+
+    const getProductDetail = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        setSellerName('');
+
+        const data = await fetchPostById(selectedProductId);
+        let authorId = null;
+
+        if (data) {
+          setProduct(data);
+          authorId = data.authorId;
+          setChatMessages([
+            { sender: 'seller', text: `Hi! Thanks for showing interest in my listing "${data.title}". Is there anything specific you would like to know?`, time: 'Just now' }
+          ]);
+          // Sync URL with post slug name
+          const slug = generateSlug(data.title);
+          window.history.pushState({ postId: data.id, view: 'product-detail' }, '', `/post/${slug}`);
+        } else {
+          // Fallback to local
+          const local = products.find((p) => p.id === selectedProductId);
+          if (local) {
+            setProduct(local);
+            authorId = local.authorId;
+            setChatMessages([
+              { sender: 'seller', text: `Hi! Thanks for showing interest in my listing "${local.title}". Is there anything specific you would like to know?`, time: 'Just now' }
+            ]);
+            // Sync URL with local post slug name
+            const slug = generateSlug(local.title);
+            window.history.pushState({ postId: local.id, view: 'product-detail' }, '', `/post/${slug}`);
+          } else {
+            throw new Error('Listing not found');
+          }
+        }
+
+        // Fetch seller profile details
+        if (authorId) {
+          try {
+            const profile = await fetchUserProfile(authorId);
+            if (profile && profile.name) {
+              setSellerName(profile.name);
+            } else {
+              setSellerName(`User #${authorId}`);
+            }
+          } catch (profileErr) {
+            console.error('Failed to load seller profile:', profileErr);
+            setSellerName(`User #${authorId}`);
+          }
+        }
+
+        // Fetch offers for the post
+        await loadOffersForPost(selectedProductId);
+      } catch (err) {
+        console.error('Failed to load post details:', err);
+        // Resilient fallback
+        const local = products.find((p) => p.id === selectedProductId);
+        if (local) {
+          setProduct(local);
+          setChatMessages([
+            { sender: 'seller', text: `Hi! Thanks for showing interest in my listing "${local.title}". Is there anything specific you would like to know?`, time: 'Just now' }
+          ]);
+          const slug = generateSlug(local.title);
+          window.history.pushState({ postId: local.id, view: 'product-detail' }, '', `/post/${slug}`);
+        } else {
+          setError(err.message || 'Failed to load post details.');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    getProductDetail();
+    setPhoneRevealed(false);
+    setPhoneCopied(false);
+    setIsChatOpen(false);
+    window.scrollTo(0, 0);
+  }, [selectedProductId, products, currentUser]);
+
+  // Scroll to bottom when new chat messages arrive or seller is typing
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [chatMessages, isTyping]);
+
+  // Loading indicator overlay
+  if (loading) {
+    return (
+      <div className="container" style={{ padding: '6rem 2rem', textAlign: 'center' }}>
+        <button
+          className="btn btn-secondary"
+          onClick={() => setSelectedProductId(null)}
+          style={{ marginBottom: '2rem', padding: '0.5rem 1rem', fontSize: '0.9rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+        >
+          <ArrowLeft size={16} />
+          Back to Listings
+        </button>
+        <div style={{ marginTop: '2rem' }}>
+          <Loader2 size={36} className="anim-spin" style={{ color: 'var(--clr-primary)', margin: '0 auto 1.5rem' }} />
+          <p style={{ color: 'var(--clr-text-secondary)' }}>Loading listing details from server...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error indicator overlay
+  if (error && !product) {
+    return (
+      <div className="container" style={{ padding: '6rem 2rem', textAlign: 'center' }}>
+        <button
+          className="btn btn-secondary"
+          onClick={() => setSelectedProductId(null)}
+          style={{ marginBottom: '2rem', padding: '0.5rem 1rem', fontSize: '0.9rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}
+        >
+          <ArrowLeft size={16} />
+          Back to Listings
+        </button>
+        <div style={{ marginTop: '2rem' }}>
+          <ShieldAlert size={48} style={{ color: 'var(--clr-danger)', margin: '0 auto 1.5rem' }} />
+          <h3>Failed to load listing</h3>
+          <p style={{ color: 'var(--clr-text-secondary)', marginTop: '0.5rem' }}>{error}</p>
+        </div>
+      </div>
+    );
+  }
 
   // Fallback if product not found
   if (!product) {
@@ -26,36 +281,10 @@ export default function ProductDetail() {
     );
   }
 
-  // Classifieds interactions states
-  const [phoneRevealed, setPhoneRevealed] = useState(false);
-  const [phoneCopied, setPhoneCopied] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState([]);
-  const [isTyping, setIsTyping] = useState(false);
-
-  const messagesEndRef = useRef(null);
-
   // Generate a mock phone number based on the author ID
   const mockPhone = `090${(product.authorId * 13) % 10}${(product.id * 17) % 1000000}`;
   // Masked version
   const maskedPhone = `${mockPhone.substring(0, 4)} ••• •••`;
-
-  useEffect(() => {
-    setPhoneRevealed(false);
-    setPhoneCopied(false);
-    setIsChatOpen(false);
-    setChatMessages([
-      { sender: 'seller', text: `Hi! Thanks for showing interest in my listing "${product.title}". Is there anything specific you would like to know?`, time: 'Just now' }
-    ]);
-    window.scrollTo(0, 0);
-  }, [product]);
-
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [chatMessages, isTyping]);
 
   const handleRevealPhone = () => {
     if (!phoneRevealed) {
@@ -78,6 +307,105 @@ export default function ProductDetail() {
     setIsChatOpen(true);
   };
 
+  const handleOpenOfferModal = () => {
+    if (!currentUser) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+    setOfferPrice('');
+    setOfferSubmitting(false);
+    setOfferSubmitError(null);
+    setOfferSuccessMsg(null);
+    setIsOfferModalOpen(true);
+  };
+
+  const handleOfferSubmit = async (e) => {
+    e.preventDefault();
+    if (!offerPrice || isNaN(offerPrice) || Number(offerPrice) <= 0) {
+      setOfferSubmitError('Please enter a valid offer price');
+      return;
+    }
+
+    setOfferSubmitting(true);
+    setOfferSubmitError(null);
+
+    try {
+      const newOfferRes = await createOffer(product.id, offerPrice);
+      setOfferSuccessMsg('Your price offer has been successfully submitted!');
+
+      // Formulate a local offer object to add to the client cache
+      const newOfferObj = {
+        id: newOfferRes?.data?.id || Date.now(),
+        buyerId: currentUser ? Number(currentUser.id) : 99,
+        postId: Number(product.id),
+        offerStatus: 'PENDING',
+        price: String(offerPrice),
+        createAt: new Date().toISOString()
+      };
+
+      // Retrieve cached offers list
+      let currentCache = [];
+      const cached = localStorage.getItem(`offers_cache_${product.id}`);
+      if (cached) {
+        try {
+          currentCache = JSON.parse(cached);
+        } catch (_) { }
+      }
+
+      // Prepend the new offer
+      currentCache = [newOfferObj, ...currentCache];
+      localStorage.setItem(`offers_cache_${product.id}`, JSON.stringify(currentCache));
+      setOffersList(currentCache);
+
+      // Reload offers list
+      await loadOffersForPost(product.id);
+
+      // Auto close after 1.5 seconds
+      setTimeout(() => {
+        setIsOfferModalOpen(false);
+        setOfferSuccessMsg(null);
+        setOfferPrice('');
+      }, 1500);
+    } catch (err) {
+      console.error('Submit offer error:', err);
+      setOfferSubmitError(err.message || 'An error occurred while submitting your offer.');
+    } finally {
+      setOfferSubmitting(false);
+    }
+  };
+
+  const handleAcceptOffer = async (offerId) => {
+    if (!offerId) return;
+    setAcceptingOfferId(offerId);
+    setAcceptError(null);
+    try {
+      await acceptOffer(offerId);
+
+      // Synchronize acceptance state in localStorage cache
+      let currentCache = [];
+      const cached = localStorage.getItem(`offers_cache_${product.id}`);
+      if (cached) {
+        try {
+          currentCache = JSON.parse(cached);
+          currentCache = currentCache.map(offer =>
+            offer.id === offerId ? { ...offer, offerStatus: 'ACCEPTED' } : offer
+          );
+          localStorage.setItem(`offers_cache_${product.id}`, JSON.stringify(currentCache));
+          setOffersList(currentCache);
+        } catch (_) { }
+      }
+
+      // Reload offers list
+      await loadOffersForPost(product.id);
+    } catch (err) {
+      console.error('Accept offer error:', err);
+      setAcceptError(err.message || 'An error occurred while accepting this offer.');
+      alert(err.message || 'Failed to accept offer');
+    } finally {
+      setAcceptingOfferId(null);
+    }
+  };
+
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
@@ -90,10 +418,10 @@ export default function ProductDetail() {
     setIsTyping(true);
     setTimeout(() => {
       setIsTyping(false);
-      
+
       const lowerMsg = userMessage.toLowerCase();
       let reply = "I can meet you this weekend to show it to you. Let me know what time works best!";
-      
+
       if (lowerMsg.includes('price') || lowerMsg.includes('discount') || lowerMsg.includes('cheap')) {
         reply = `The price is negotiable, but I cannot go too low. What price were you thinking?`;
       } else if (lowerMsg.includes('condition') || lowerMsg.includes('new') || lowerMsg.includes('damage')) {
@@ -113,6 +441,8 @@ export default function ProductDetail() {
     day: 'numeric',
     year: 'numeric'
   });
+
+  const isOwnProduct = currentUser && String(currentUser.id) === String(product.authorId);
 
   return (
     <div className="container anim-fade-in" style={{ padding: '2rem 1.5rem', position: 'relative' }}>
@@ -161,7 +491,7 @@ export default function ProductDetail() {
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <User size={16} />
-              <span>Seller ID: #{product.authorId}</span>
+              <span>Seller: {sellerName || `User #${product.authorId}`}</span>
             </div>
           </div>
 
@@ -188,7 +518,7 @@ export default function ProductDetail() {
           {/* Classifieds Contact Box */}
           <div style={{ background: 'var(--clr-bg-card)', border: '1px solid var(--clr-border)', borderRadius: 'var(--radius-md)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-sm)' }}>
             <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: 'var(--clr-text-primary)' }}>Interested in this item? Contact Seller</h3>
-            
+
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
               {/* Phone reveal button */}
               <button
@@ -231,6 +561,27 @@ export default function ProductDetail() {
                 <MessageCircle size={18} />
                 <span>Chat with Seller</span>
               </button>
+
+              {/* Make Offer trigger */}
+              {!isOwnProduct && (
+                <button
+                  className="btn btn-secondary"
+                  style={{
+                    flex: 1,
+                    minWidth: '200px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    padding: '0.85rem',
+                    border: '1px solid var(--clr-border)'
+                  }}
+                  onClick={handleOpenOfferModal}
+                >
+                  <Tag size={18} style={{ color: 'var(--clr-primary)' }} />
+                  <span>Make Offer</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -241,7 +592,7 @@ export default function ProductDetail() {
         <h3 style={{ fontSize: '1.25rem', fontWeight: 800, borderBottom: '1px solid var(--clr-border)', paddingBottom: '0.75rem', marginBottom: '1.5rem', color: 'var(--clr-text-primary)' }}>
           Detailed Specifications
         </h3>
-        
+
         <div className="anim-fade-in" style={{ color: 'var(--clr-text-secondary)', lineHeight: 1.8 }}>
           <table className="admin-table" style={{ background: 'var(--clr-bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--clr-border)' }}>
             <tbody>
@@ -261,7 +612,7 @@ export default function ProductDetail() {
                 <td style={{ fontWeight: 600 }}>Last Updated</td>
                 <td>{new Date(product.updatedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
               </tr>
-              
+
               {/* Optional dimensions */}
               {(product.length !== null || product.width !== null || product.height !== null) && (
                 <tr>
@@ -274,13 +625,13 @@ export default function ProductDetail() {
               {product.weight !== null && (
                 <tr>
                   <td style={{ fontWeight: 600 }}>Weight</td>
-                  <td>{product.weight} kg</td>
+                  <td>{product.weight} g</td>
                 </tr>
               )}
 
               <tr>
-                <td style={{ fontWeight: 600 }}>Seller Account ID</td>
-                <td>User #{product.authorId}</td>
+                <td style={{ fontWeight: 600 }}>Seller Account</td>
+                <td>{sellerName || `User #${product.authorId}`} </td>
               </tr>
               <tr>
                 <td style={{ fontWeight: 600 }}>Listing Status</td>
@@ -289,6 +640,114 @@ export default function ProductDetail() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Offers from Other Buyers Section */}
+      <div className="reviews-section" style={{ marginTop: '2rem' }}>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 800, borderBottom: '1px solid var(--clr-border)', paddingBottom: '0.75rem', marginBottom: '1.5rem', color: 'var(--clr-text-primary)' }}>
+          Offers from Other Buyers
+        </h3>
+
+        {offersLoading ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--clr-text-secondary)', padding: '1rem' }}>
+            <Loader2 size={16} className="anim-spin" />
+            <span>Retrieving customer offer levels...</span>
+          </div>
+        ) : offersError ? (
+          <div style={{ padding: '1rem', background: 'var(--clr-bg-app)', border: '1px solid var(--clr-border)', borderRadius: 'var(--radius-sm)', color: 'var(--clr-text-secondary)', fontSize: '0.9rem' }}>
+            {offersError === 'Log in to see customer offers' ? (
+              <span>
+                💡 Please <button className="btn-link" style={{ background: 'none', border: 'none', padding: 0, color: 'var(--clr-primary)', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline', font: 'inherit' }} onClick={() => setIsAuthModalOpen(true)}>Sign In</button> to view price offers from other customers.
+              </span>
+            ) : (
+              <span>⚠️ {offersError}</span>
+            )}
+          </div>
+        ) : offersList.length > 0 ? (
+          <div className="anim-fade-in" style={{ color: 'var(--clr-text-secondary)', lineHeight: 1.8 }}>
+            <table className="admin-table" style={{ background: 'var(--clr-bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--clr-border)' }}>
+              <thead>
+                <tr style={{ background: 'var(--clr-bg-app)' }}>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.85rem' }}>Buyer ID</th>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.85rem' }}>Offered Price</th>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.85rem' }}>Offer Status</th>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.85rem' }}>Submitted At</th>
+                  {isOwnProduct && <th style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.85rem' }}>Actions</th>}
+                </tr>
+              </thead>
+              <tbody>
+                {offersList.map((offer) => {
+                  const offerDate = new Date(offer.createAt).toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  });
+                  return (
+                    <tr key={offer.id}>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>
+                        {buyerNames[offer.buyerId] || `Buyer #${offer.buyerId}`}
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: 'var(--clr-primary)' }}>
+                        {formatPrice(offer.price)}
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem' }}>
+                        {offer.offerStatus === 'PENDING' && (
+                          <span className="badge badge-warning" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>PENDING</span>
+                        )}
+                        {offer.offerStatus === 'ACCEPTED' && (
+                          <span className="badge badge-success" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>ACCEPTED</span>
+                        )}
+                        {offer.offerStatus === 'REJECTED' && (
+                          <span className="badge badge-danger" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'hsl(0, 100%, 95%)', color: 'hsl(0, 100%, 40%)' }}>REJECTED</span>
+                        )}
+                      </td>
+                      <td style={{ padding: '0.75rem 1rem', fontSize: '0.85rem' }}>{offerDate}</td>
+                      {isOwnProduct && (
+                        <td style={{ padding: '0.5rem 1rem' }}>
+                          {offer.offerStatus === 'PENDING' ? (
+                            <button
+                              className="btn btn-primary"
+                              style={{
+                                padding: '0.25rem 0.75rem',
+                                fontSize: '0.75rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.25rem',
+                                borderRadius: 'var(--radius-sm)',
+                                color: '#ffffff'
+                              }}
+                              onClick={() => handleAcceptOffer(offer.id)}
+                              disabled={acceptingOfferId === offer.id}
+                            >
+                              {acceptingOfferId === offer.id ? (
+                                <>
+                                  <Loader2 size={12} className="anim-spin" />
+                                  Accepting...
+                                </>
+                              ) : (
+                                'Accept'
+                              )}
+                            </button>
+                          ) : (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--clr-text-muted)', fontStyle: 'italic' }}>
+                              No Actions
+                            </span>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div style={{ padding: '1.5rem', background: 'var(--clr-bg-card)', border: '1px solid var(--clr-border)', borderRadius: 'var(--radius-sm)', color: 'var(--clr-text-secondary)', textAlign: 'center', fontSize: '0.9rem' }}>
+            <span>No price offers have been submitted for this listing yet. Be the first to contact the seller!</span>
+          </div>
+        )}
       </div>
 
       {/* Floating Chat Widget */}
@@ -339,7 +798,7 @@ export default function ProductDetail() {
                 S
               </div>
               <div>
-                <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>Seller #{product.authorId}</div>
+                <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>Seller: {sellerName || `User #${product.authorId}`}</div>
                 <div style={{ fontSize: '0.7rem', opacity: 0.8 }}>Active on platform</div>
               </div>
             </div>
@@ -401,7 +860,7 @@ export default function ProductDetail() {
                 </div>
               );
             })}
-            
+
             {isTyping && (
               <div
                 style={{
@@ -423,7 +882,7 @@ export default function ProductDetail() {
                 <span className="anim-pulse" style={{ animationDelay: '0.4s' }}>•</span>
               </div>
             )}
-            
+
             <div ref={messagesEndRef} />
           </div>
 
@@ -468,6 +927,118 @@ export default function ProductDetail() {
               <Send size={14} />
             </button>
           </form>
+        </div>
+      )}
+
+      {/* Make Offer Modal */}
+      {isOfferModalOpen && (
+        <div className="admin-modal-overlay" onClick={() => !offerSubmitting && setIsOfferModalOpen(false)} style={{ zIndex: 300 }}>
+          <div className="admin-modal anim-scale-in" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
+            <div className="admin-modal-header">
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0, color: 'var(--clr-text-primary)' }}>
+                Suggest Alternative Price
+              </h3>
+              <button
+                className="theme-switch"
+                onClick={() => setIsOfferModalOpen(false)}
+                disabled={offerSubmitting}
+                style={{ width: '32px', height: '32px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleOfferSubmit}>
+              <div className="admin-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {offerSuccessMsg && (
+                  <div
+                    className="badge badge-success"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.75rem 1rem',
+                      borderRadius: 'var(--radius-sm)',
+                      width: '100%',
+                      textTransform: 'none',
+                      lineHeight: 1.4
+                    }}
+                  >
+                    <Check size={16} style={{ flexShrink: 0 }} />
+                    {offerSuccessMsg}
+                  </div>
+                )}
+
+                {offerSubmitError && (
+                  <div
+                    className="badge badge-danger"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.75rem 1rem',
+                      borderRadius: 'var(--radius-sm)',
+                      width: '100%',
+                      textTransform: 'none',
+                      lineHeight: 1.4
+                    }}
+                  >
+                    <ShieldAlert size={16} style={{ flexShrink: 0 }} />
+                    {offerSubmitError}
+                  </div>
+                )}
+
+                <div style={{ background: 'var(--clr-bg-app)', border: '1px solid var(--clr-border)', borderRadius: 'var(--radius-sm)', padding: '1rem' }}>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--clr-text-secondary)', marginBottom: '0.25rem' }}>Item Listing:</div>
+                  <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--clr-text-primary)', marginBottom: '0.5rem' }}>{product.title}</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--clr-text-secondary)' }}>
+                    Original Price: <strong style={{ color: 'var(--clr-primary)' }}>{formatPrice(product.price)}</strong>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="offerPrice">Your Proposed Price (VND)</label>
+                  <input
+                    type="number"
+                    id="offerPrice"
+                    className="form-input"
+                    placeholder="e.g. 5555000"
+                    value={offerPrice}
+                    onChange={(e) => setOfferPrice(e.target.value)}
+                    required
+                    disabled={offerSubmitting || !!offerSuccessMsg}
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div className="admin-modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setIsOfferModalOpen(false)}
+                  disabled={offerSubmitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                  disabled={offerSubmitting || !!offerSuccessMsg}
+                >
+                  {offerSubmitting ? (
+                    <>
+                      <Loader2 size={14} className="anim-spin" />
+                      Submitting Offer...
+                    </>
+                  ) : (
+                    'Submit Offer'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

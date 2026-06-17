@@ -59,7 +59,7 @@ function App() {
       {/* Main View Router */}
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         {(view === 'storefront' || view === 'user-listings') && renderStorefrontContent()}
-        
+
         {view === 'admin' && (
           <div className="admin-shell">
             {/* Admin Sidebar Dashboard Switcher */}
@@ -72,7 +72,7 @@ function App() {
                 Dashboard Metrics
                 <ChevronRight size={14} style={{ marginLeft: 'auto', opacity: adminTab === 'dashboard' ? 1 : 0 }} />
               </div>
-              
+
               <div
                 className={`admin-nav-item ${adminTab === 'products' ? 'active' : ''}`}
                 onClick={() => setAdminTab('products')}
@@ -81,13 +81,13 @@ function App() {
                 Manage Posts
                 <ChevronRight size={14} style={{ marginLeft: 'auto', opacity: adminTab === 'products' ? 1 : 0 }} />
               </div>
-              
+
               <div
                 className={`admin-nav-item ${adminTab === 'customers' ? 'active' : ''}`}
                 onClick={() => setAdminTab('customers')}
               >
                 <Users size={18} />
-                User Database
+                Manage Users
                 <ChevronRight size={14} style={{ marginLeft: 'auto', opacity: adminTab === 'customers' ? 1 : 0 }} />
               </div>
             </aside>

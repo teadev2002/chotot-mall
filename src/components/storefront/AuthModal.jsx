@@ -1,6 +1,6 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { ShopContext } from '../../context/ShopContext';
-import { X, Lock, Mail, User, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { X, Lock, Mail, User, AlertCircle, CheckCircle2, Phone } from 'lucide-react';
 
 export default function AuthModal() {
   const {
@@ -18,6 +18,7 @@ export default function AuthModal() {
   // Input fields state
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -29,6 +30,7 @@ export default function AuthModal() {
   useEffect(() => {
     setName('');
     setEmail('');
+    setPhone('');
     setPassword('');
     setConfirmPassword('');
     setErrorMsg('');
@@ -69,7 +71,7 @@ export default function AuthModal() {
       }
     } else {
       // Sign Up Logic
-      if (!name.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()) {
+      if (!name.trim() || !email.trim() || !phone.trim() || !password.trim() || !confirmPassword.trim()) {
         setErrorMsg('Please fill out all fields.');
         return;
       }
@@ -77,8 +79,8 @@ export default function AuthModal() {
         setErrorMsg('Please enter a valid email address.');
         return;
       }
-      if (password.length < 6) {
-        setErrorMsg('Password must be at least 6 characters.');
+      if (password.length < 3) {
+        setErrorMsg('Password must be at least 3 characters.');
         return;
       }
       if (password !== confirmPassword) {
@@ -86,7 +88,7 @@ export default function AuthModal() {
         return;
       }
 
-      const res = signUp(name, email, password);
+      const res = await signUp(name, email, password, phone);
       if (res.success) {
         setSuccessMsg('Account created successfully! Welcome.');
         setTimeout(() => {
@@ -160,7 +162,7 @@ export default function AuthModal() {
 
         {/* Form Body */}
         <form onSubmit={handleFormSubmit} style={{ padding: '2rem 1.5rem' }}>
-          
+
           {/* Status Alert Panels */}
           {errorMsg && (
             <div
@@ -204,21 +206,40 @@ export default function AuthModal() {
 
           {/* Tab 2 Sign Up - Full Name input */}
           {activeTab === 'signup' && (
-            <div className="form-group anim-fade-in">
-              <label className="form-label" htmlFor="auth-name">Full Name</label>
-              <div style={{ position: 'relative' }}>
-                <User size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--clr-text-muted)' }} />
-                <input
-                  type="text"
-                  id="auth-name"
-                  className="form-input"
-                  style={{ paddingLeft: '2.5rem' }}
-                  placeholder="John Doe"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
+            <>
+              <div className="form-group anim-fade-in">
+                <label className="form-label" htmlFor="auth-name">Full Name</label>
+                <div style={{ position: 'relative' }}>
+                  <User size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--clr-text-muted)' }} />
+                  <input
+                    type="text"
+                    id="auth-name"
+                    className="form-input"
+                    style={{ paddingLeft: '2.5rem' }}
+                    placeholder="John Doe"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
               </div>
-            </div>
+
+              {/* Phone Input */}
+              <div className="form-group anim-fade-in">
+                <label className="form-label" htmlFor="auth-phone">Phone Number</label>
+                <div style={{ position: 'relative' }}>
+                  <Phone size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--clr-text-muted)' }} />
+                  <input
+                    type="tel"
+                    id="auth-phone"
+                    className="form-input"
+                    style={{ paddingLeft: '2.5rem' }}
+                    placeholder="e.g. 0987654321"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                  />
+                </div>
+              </div>
+            </>
           )}
 
           {/* Email input */}
