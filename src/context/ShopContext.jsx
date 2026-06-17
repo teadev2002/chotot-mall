@@ -3,7 +3,7 @@ import { decodeJwt } from '../utils/jwt';
 import { setCookie, getCookie, deleteCookie } from '../utils/cookie';
 import { formatPrice } from '../utils/price';
 import { signIn as authSignIn, signUpService } from '../services/authService';
-import { fetchAllPosts } from '../services/productService';
+import { fetchAllPosts, fetchPostById } from '../services/productService';
 import { fetchUserProfile, fetchUserPosts } from '../services/userService';
 import { generateSlug } from '../utils/slug';
 
@@ -255,7 +255,24 @@ export const ShopProvider = ({ children }) => {
     const fetchStorefrontPosts = async () => {
       try {
         const mapped = await fetchAllPosts();
-        setProducts(mapped);
+        
+        // Fetch detailed post info in parallel to get actual image URLs
+        const detailedMapped = await Promise.all(
+          mapped.map(async (post) => {
+            try {
+              const detailed = await fetchPostById(post.id);
+              if (detailed && detailed.image) {
+                return { ...post, image: detailed.image };
+              }
+              return post;
+            } catch (err) {
+              console.error(`Failed to fetch detailed post for ${post.id}:`, err);
+              return post;
+            }
+          })
+        );
+        
+        setProducts(detailedMapped);
       } catch (err) {
         console.error('Failed to load posts for storefront:', err);
       }
