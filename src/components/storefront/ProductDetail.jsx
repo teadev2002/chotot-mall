@@ -2,7 +2,7 @@ import React, { useState, useContext, useEffect, useRef } from 'react';
 import { ShopContext } from '../../context/ShopContext';
 import { ArrowLeft, Phone, MessageCircle, MapPin, Calendar, User, Send, ShieldAlert, Check, Loader2, Tag, X } from 'lucide-react';
 import { fetchPostById, fetchOffersByPostId, createOffer, acceptOffer } from '../../services/productService';
-import { fetchUserProfile } from '../../services/userService';
+import { fetchUserProfile, fetchUserAddress } from '../../services/userService';
 import { generateSlug } from '../../utils/slug';
 
 export default function ProductDetail() {
@@ -37,6 +37,7 @@ export default function ProductDetail() {
 
   // Seller profile state
   const [sellerName, setSellerName] = useState('');
+  const [sellerAddress, setSellerAddress] = useState(null);
   const [buyerNames, setBuyerNames] = useState({});
 
   // Fetch buyer names whenever offersList changes
@@ -148,6 +149,7 @@ export default function ProductDetail() {
         setLoading(true);
         setError(null);
         setSellerName('');
+        setSellerAddress(null);
 
         const data = await fetchPostById(selectedProductId);
         let authorId = null;
@@ -190,6 +192,14 @@ export default function ProductDetail() {
           } catch (profileErr) {
             console.error('Failed to load seller profile:', profileErr);
             setSellerName(`User #${authorId}`);
+          }
+
+          try {
+            const address = await fetchUserAddress(authorId);
+            setSellerAddress(address);
+          } catch (addrErr) {
+            console.error('Failed to load seller address:', addrErr);
+            setSellerAddress(null);
           }
         }
 
@@ -427,7 +437,10 @@ export default function ProductDetail() {
       } else if (lowerMsg.includes('condition') || lowerMsg.includes('new') || lowerMsg.includes('damage')) {
         reply = `It is in good condition, exactly as shown in the pictures. Feel free to inspect it in person before buying.`;
       } else if (lowerMsg.includes('where') || lowerMsg.includes('address') || lowerMsg.includes('meet')) {
-        reply = `I am located around ${product.location || 'District 1, HCMC'}. Where are you coming from?`;
+        const locStr = sellerAddress 
+          ? `${sellerAddress.ward}, ${sellerAddress.district}, ${sellerAddress.city}`
+          : (product.location || 'District 1, HCMC');
+        reply = `I am located around ${locStr}. Where are you coming from?`;
       } else if (lowerMsg.includes('original') || lowerMsg.includes('box') || lowerMsg.includes('receipt')) {
         reply = `I don't have the original purchase receipt, but you are welcome to verify and test the serial number.`;
       }
@@ -483,7 +496,11 @@ export default function ProductDetail() {
           <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', margin: '0.5rem 0', fontSize: '0.9rem', color: 'var(--clr-text-secondary)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <MapPin size={16} style={{ color: 'var(--clr-primary)' }} />
-              <strong>{product.location}</strong>
+              <strong>
+                {sellerAddress 
+                  ? `${sellerAddress.street}, ${sellerAddress.ward}, ${sellerAddress.district}, ${sellerAddress.city}`
+                  : (product.location || 'Ho Chi Minh City, Vietnam')}
+              </strong>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <Calendar size={16} />
@@ -601,8 +618,12 @@ export default function ProductDetail() {
                 <td>{product.category}</td>
               </tr>
               <tr>
-                <td style={{ fontWeight: 600 }}>Location Location</td>
-                <td>{product.location || 'Ho Chi Minh City, Vietnam'}</td>
+                <td style={{ fontWeight: 600 }}>Location</td>
+                <td>
+                  {sellerAddress 
+                    ? `${sellerAddress.street}, ${sellerAddress.ward}, ${sellerAddress.district}, ${sellerAddress.city}`
+                    : (product.location || 'Ho Chi Minh City, Vietnam')}
+                </td>
               </tr>
               <tr>
                 <td style={{ fontWeight: 600 }}>Date Created</td>

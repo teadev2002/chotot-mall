@@ -1,6 +1,7 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { ShopContext } from '../../context/ShopContext';
 import { SlidersHorizontal, Eye, MapPin, Calendar } from 'lucide-react';
+import { fetchUserAddress } from '../../services/userService';
 
 export default function ProductGrid() {
   const {
@@ -15,6 +16,52 @@ export default function ProductGrid() {
     setSortBy,
     formatPrice
   } = useContext(ShopContext);
+
+  const [productLocations, setProductLocations] = useState({});
+
+  useEffect(() => {
+    if (!products || products.length === 0) return;
+
+    const fetchLocations = async () => {
+      const authorIds = [...new Set(products.map((p) => p.authorId).filter(Boolean))];
+      const idsToFetch = authorIds.filter((id) => !productLocations[id]);
+      if (idsToFetch.length === 0) return;
+
+      try {
+        const fetchedLocations = await Promise.all(
+          idsToFetch.map(async (authorId) => {
+            try {
+              const address = await fetchUserAddress(authorId);
+              if (address) {
+                const formatted = `${address.street}, ${address.ward}, ${address.district}, ${address.city}`;
+                return { authorId, location: formatted };
+              }
+              return { authorId, location: null };
+            } catch (err) {
+              console.error(`Failed to fetch address for author ${authorId}:`, err);
+              return { authorId, location: null };
+            }
+          })
+        );
+
+        const newLocationsMap = {};
+        fetchedLocations.forEach((item) => {
+          if (item.location) {
+            newLocationsMap[item.authorId] = item.location;
+          }
+        });
+
+        setProductLocations((prev) => ({
+          ...prev,
+          ...newLocationsMap
+        }));
+      } catch (err) {
+        console.error('Failed to resolve product locations:', err);
+      }
+    };
+
+    fetchLocations();
+  }, [products]);
 
   // Filter & Sort Logic
   const filteredProducts = products
@@ -225,7 +272,7 @@ export default function ProductGrid() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', margin: '0.5rem 0', fontSize: '0.8rem', color: 'var(--clr-text-muted)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                           <MapPin size={12} style={{ color: 'var(--clr-primary)' }} />
-                          <span>{prod.location || 'Unknown Location'}</span>
+                          <span>{productLocations[prod.authorId] || prod.location || 'Unknown Location'}</span>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                           <Calendar size={12} />

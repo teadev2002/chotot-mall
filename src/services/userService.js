@@ -78,3 +78,15 @@ export const saveUserAddress = async (addressData) => {
   }
   return await response.json();
 };
+
+export const fetchUserAddress = async (userId) => {
+  const response = await apiFetch(`https://cho-tot-production.up.railway.app/address/get-address-by-user-id?id=${userId}`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch user address details');
+  }
+  const resData = await response.json();
+  if (resData.success && resData.data) {
+    return resData.data;
+  }
+  return null;
+};
