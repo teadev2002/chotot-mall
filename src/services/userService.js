@@ -90,3 +90,43 @@ export const fetchUserAddress = async (userId) => {
   }
   return null;
 };
+
+export const fetchUserOrders = async () => {
+  const response = await apiFetch('https://cho-tot-production.up.railway.app/order/get-all-order-by-user');
+  if (!response.ok) {
+    throw new Error('Failed to fetch user orders');
+  }
+  const resData = await response.json();
+  if (resData.success && Array.isArray(resData.data)) {
+    return resData.data;
+  }
+  return [];
+};
+
+export const updateUserOrder = async (orderId, orderStatus) => {
+  const response = await apiFetch('https://cho-tot-production.up.railway.app/order/update-order', {
+    method: 'PUT',
+    body: JSON.stringify({ orderId: Number(orderId), orderStatus })
+  });
+  if (!response.ok) {
+    let errorMsg = 'Failed to update order status';
+    try {
+      const errJSON = await response.json();
+      if (errJSON && errJSON.message) errorMsg = errJSON.message;
+    } catch (_) {}
+    throw new Error(errorMsg);
+  }
+  return await response.json();
+};
+
+export const fetchOrderDetailsByPostId = async (postId) => {
+  const response = await apiFetch(`https://cho-tot-production.up.railway.app/order/get-order-by-post-id?postId=${postId}`);
+  if (!response.ok) {
+    throw new Error('Failed to fetch order details by post ID');
+  }
+  const resData = await response.json();
+  if (resData.success && Array.isArray(resData.data)) {
+    return resData.data;
+  }
+  return [];
+};

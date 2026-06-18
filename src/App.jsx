@@ -7,6 +7,7 @@ import Footer from './components/Footer';
 import ProductGrid from './components/storefront/ProductGrid';
 import ProductDetail from './components/storefront/ProductDetail';
 import UserListings from './components/storefront/UserListings';
+import UserOrder from './components/storefront/UserOrder';
 import AuthModal from './components/storefront/AuthModal';
 
 // Admin Components
@@ -34,6 +35,9 @@ function App() {
     if (view === 'user-listings') {
       return <UserListings />;
     }
+    if (view === 'my-offers') {
+      return <UserOrder />;
+    }
     return <ProductGrid />;
   };
 
@@ -58,7 +62,7 @@ function App() {
 
       {/* Main View Router */}
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {(view === 'storefront' || view === 'user-listings') && renderStorefrontContent()}
+        {(view === 'storefront' || view === 'user-listings' || view === 'my-offers') && renderStorefrontContent()}
 
         {view === 'admin' && (
           <div className="admin-shell">

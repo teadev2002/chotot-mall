@@ -150,6 +150,28 @@ export default function Header() {
                     >
                       My Listings
                     </button>
+
+                    <button
+                      style={{
+                        padding: '0.5rem 1rem',
+                        background: 'none',
+                        border: 'none',
+                        textAlign: 'left',
+                        color: 'var(--clr-text-primary)',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        width: '100%'
+                      }}
+                      className="dropdown-item"
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        setView('my-offers');
+                        setSelectedProductId(null);
+                        window.history.pushState({ view: 'my-offers' }, '', '/my-offers');
+                      }}
+                    >
+                      My Offers
+                    </button>
                     
                     {currentUser.role === 'ADMIN' && (
                       <button
