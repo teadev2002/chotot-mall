@@ -1,7 +1,7 @@
 import React, { useContext, useState, useEffect } from 'react';
 import { ShopContext } from '../../context/ShopContext';
 import { SlidersHorizontal, Eye, MapPin, Calendar } from 'lucide-react';
-import { fetchUserAddress } from '../../services/userService';
+import { fetchUserAddress, fetchAllOrders } from '../../services/userService';
 
 export default function ProductGrid() {
   const {
@@ -18,6 +18,23 @@ export default function ProductGrid() {
   } = useContext(ShopContext);
 
   const [productLocations, setProductLocations] = useState({});
+  const [soldOutPostIds, setSoldOutPostIds] = useState([]);
+
+  // Fetch all orders on mount to find sold out items
+  useEffect(() => {
+    const getSoldOutPostIds = async () => {
+      try {
+        const orders = await fetchAllOrders();
+        const acceptedPostIds = orders
+          .filter(order => order.orderStatus === 'ACCEPTED')
+          .map(order => order.postId);
+        setSoldOutPostIds(acceptedPostIds);
+      } catch (err) {
+        console.error('Failed to load orders for checking sold out posts:', err);
+      }
+    };
+    getSoldOutPostIds();
+  }, []);
 
   useEffect(() => {
     if (!products || products.length === 0) return;
@@ -243,15 +260,38 @@ export default function ProductGrid() {
                   month: 'short',
                   day: 'numeric'
                 });
+                const isSoldOut = soldOutPostIds.includes(prod.id);
 
                 return (
-                  <article key={prod.id} className="product-card anim-scale-in">
-                    <div className="product-image-wrapper">
+                  <article key={prod.id} className="product-card anim-scale-in" style={isSoldOut ? { opacity: 0.85, position: 'relative' } : {}}>
+                    <div className="product-image-wrapper" style={{ position: 'relative' }}>
                       {/* Product badges overlay */}
                       <div className="product-badge-overlay">
                         <span className="badge badge-primary">{prod.category}</span>
                       </div>
                       <img src={prod.image} alt={prod.title} className="product-card-img" />
+                      {isSoldOut && (
+                        <div style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          zIndex: 2,
+                          color: '#ffffff',
+                          fontWeight: 800,
+                          fontSize: '1.2rem',
+                          textTransform: 'uppercase',
+                          letterSpacing: '1px',
+                          borderRadius: 'var(--radius-md) var(--radius-md) 0 0'
+                        }}>
+                          SOLD OUT
+                        </div>
+                      )}
                     </div>
 
                     <div className="product-card-info" style={{ display: 'flex', flexDirection: 'column', height: 'calc(100% - 160px)' }}>
@@ -261,8 +301,8 @@ export default function ProductGrid() {
                       </div>
                       <h3
                         className="product-card-title"
-                        onClick={() => setSelectedProductId(prod.id)}
-                        style={{ cursor: 'pointer', flex: '1', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                        onClick={isSoldOut ? undefined : () => setSelectedProductId(prod.id)}
+                        style={{ cursor: isSoldOut ? 'not-allowed' : 'pointer', flex: '1', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
                         title={prod.title}
                       >
                         {prod.title}
@@ -285,22 +325,41 @@ export default function ProductGrid() {
                           {formatPrice(prod.price)}
                         </span>
                         
-                        <button
-                          className="btn btn-secondary"
-                          style={{
-                            padding: '0.35rem 0.75rem',
-                            fontSize: '0.8rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            borderRadius: 'var(--radius-sm)'
-                          }}
-                          onClick={() => setSelectedProductId(prod.id)}
-                          title="View Details"
-                        >
-                          <Eye size={14} />
-                          Details
-                        </button>
+                        {isSoldOut ? (
+                          <button
+                            className="btn btn-secondary"
+                            style={{
+                              padding: '0.35rem 0.75rem',
+                              fontSize: '0.8rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              borderRadius: 'var(--radius-sm)',
+                              opacity: 0.5,
+                              cursor: 'not-allowed'
+                            }}
+                            disabled
+                          >
+                            SOLD OUT
+                          </button>
+                        ) : (
+                          <button
+                            className="btn btn-secondary"
+                            style={{
+                              padding: '0.35rem 0.75rem',
+                              fontSize: '0.8rem',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.25rem',
+                              borderRadius: 'var(--radius-sm)'
+                            }}
+                            onClick={() => setSelectedProductId(prod.id)}
+                            title="View Details"
+                          >
+                            <Eye size={14} />
+                            Details
+                          </button>
+                        )}
                       </div>
                     </div>
                   </article>

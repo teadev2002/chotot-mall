@@ -1,7 +1,7 @@
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { ShopContext } from '../../context/ShopContext';
-import { ArrowLeft, Phone, MessageCircle, MapPin, Calendar, User, Send, ShieldAlert, Check, Loader2, Tag, X } from 'lucide-react';
-import { fetchPostById, fetchOffersByPostId, createOffer, acceptOffer } from '../../services/productService';
+import { ArrowLeft, Phone, MessageCircle, MapPin, Calendar, User, Send, ShieldAlert, Check, Loader2, Tag, X, Edit } from 'lucide-react';
+import { fetchPostById, fetchOffersByPostId, createOffer, acceptOffer, fetchCategories, updatePost } from '../../services/productService';
 import { fetchUserProfile, fetchUserAddress } from '../../services/userService';
 import { generateSlug } from '../../utils/slug';
 
@@ -12,7 +12,9 @@ export default function ProductDetail() {
     setSelectedProductId,
     currentUser,
     setIsAuthModalOpen,
-    formatPrice
+    formatPrice,
+    editProduct,
+    loadUserListings
   } = useContext(ShopContext);
 
   const [product, setProduct] = useState(null);
@@ -34,6 +36,23 @@ export default function ProductDetail() {
   // Offer acceptance states
   const [acceptingOfferId, setAcceptingOfferId] = useState(null);
   const [acceptError, setAcceptError] = useState(null);
+
+  // Edit listing states
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    title: '',
+    content: '',
+    categoryId: '',
+    price: '',
+    width: '',
+    length: '',
+    height: '',
+    weight: ''
+  });
+  const [editCategories, setEditCategories] = useState([]);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState(null);
 
   // Seller profile state
   const [sellerName, setSellerName] = useState('');
@@ -416,6 +435,112 @@ export default function ProductDetail() {
     }
   };
 
+  const handleOpenEditModal = async () => {
+    setEditForm({
+      title: product.title || '',
+      content: product.description || product.content || '',
+      categoryId: String(product.categoryId || '1'),
+      price: String(product.price || ''),
+      width: String(product.width || '0'),
+      length: String(product.length || '0'),
+      height: String(product.height || '0'),
+      weight: String(product.weight || '0')
+    });
+    setEditCategories([]);
+    setEditError(null);
+    setEditLoading(true);
+    setIsEditModalOpen(true);
+
+    try {
+      const [categoriesData, latestProduct] = await Promise.all([
+        fetchCategories(),
+        fetchPostById(product.id)
+      ]);
+
+      if (categoriesData && categoriesData.length > 0) {
+        setEditCategories(categoriesData);
+      }
+
+      if (latestProduct) {
+        setProduct(latestProduct);
+        setEditForm({
+          title: latestProduct.title || '',
+          content: latestProduct.description || latestProduct.content || '',
+          categoryId: String(latestProduct.categoryId || '1'),
+          price: String(latestProduct.price || ''),
+          width: String(latestProduct.width || '0'),
+          length: String(latestProduct.length || '0'),
+          height: String(latestProduct.height || '0'),
+          weight: String(latestProduct.weight || '0')
+        });
+      }
+    } catch (err) {
+      console.error('Failed to prefetch edit data:', err);
+      setEditCategories([
+        { id: 1, name: 'Electronics' },
+        { id: 2, name: 'Fashion' },
+        { id: 3, name: 'Accessories' }
+      ]);
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleEditInputChange = (e) => {
+    const { id, value } = e.target;
+    setEditForm(prev => ({ ...prev, [id]: value }));
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!editForm.title.trim()) {
+      setEditError('Title is required');
+      return;
+    }
+    if (!editForm.content.trim()) {
+      setEditError('Description is required');
+      return;
+    }
+
+    setEditSubmitting(true);
+    setEditError(null);
+
+    const payload = {
+      title: editForm.title.trim(),
+      content: editForm.content.trim(),
+      categoryId: Number(editForm.categoryId),
+      price: Number(editForm.price),
+      width: Number(editForm.width),
+      length: Number(editForm.length),
+      height: Number(editForm.height),
+      weight: Number(editForm.weight),
+      weigth: Number(editForm.weight)
+    };
+
+    try {
+      await updatePost(product.id, payload);
+
+      const updatedProduct = await fetchPostById(product.id);
+      if (updatedProduct) {
+        setProduct(updatedProduct);
+        if (editProduct) {
+          editProduct(product.id, updatedProduct);
+        }
+      }
+
+      if (currentUser && loadUserListings) {
+        loadUserListings(currentUser.id).catch(err => console.error('Error reloading user listings:', err));
+      }
+
+      setIsEditModalOpen(false);
+    } catch (err) {
+      console.error('Failed to update listing:', err);
+      setEditError(err.message || 'Failed to update post listing.');
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
@@ -534,9 +659,29 @@ export default function ProductDetail() {
 
           {/* Classifieds Contact Box */}
           <div style={{ background: 'var(--clr-bg-card)', border: '1px solid var(--clr-border)', borderRadius: 'var(--radius-md)', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', boxShadow: 'var(--shadow-sm)' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: 'var(--clr-text-primary)' }}>Interested in this item? Contact Seller</h3>
+            <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: 'var(--clr-text-primary)' }}>
+              {isOwnProduct ? 'Manage Your Listing' : 'Interested in this item? Contact Seller'}
+            </h3>
 
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              {isOwnProduct && (
+                <button
+                  className="btn btn-primary"
+                  style={{
+                    flex: 1,
+                    minWidth: '200px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.5rem',
+                    padding: '0.85rem'
+                  }}
+                  onClick={handleOpenEditModal}
+                >
+                  <Edit size={18} />
+                  <span>Edit Listing Details</span>
+                </button>
+              )}
               {/* Phone reveal button */}
               <button
                 className={`btn ${phoneRevealed ? 'btn-success' : 'btn-primary'}`}
@@ -697,37 +842,39 @@ export default function ProductDetail() {
                 </tr>
               </thead>
               <tbody>
-                {offersList.map((offer) => {
-                  const offerDate = new Date(offer.createAt).toLocaleString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  });
-                  return (
-                    <tr key={offer.id}>
-                      <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>
-                        {buyerNames[offer.buyerId] || `Buyer #${offer.buyerId}`}
-                      </td>
-                      <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: 'var(--clr-primary)' }}>
-                        {formatPrice(offer.price)}
-                      </td>
-                      <td style={{ padding: '0.75rem 1rem' }}>
-                        {offer.offerStatus === 'PENDING' && (
-                          <span className="badge badge-warning" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>PENDING</span>
-                        )}
-                        {offer.offerStatus === 'ACCEPTED' && (
-                          <span className="badge badge-success" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>ACCEPTED</span>
-                        )}
-                        {offer.offerStatus === 'REJECTED' && (
-                          <span className="badge badge-danger" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'hsl(0, 100%, 95%)', color: 'hsl(0, 100%, 40%)' }}>REJECTED</span>
-                        )}
-                      </td>
-                      <td style={{ padding: '0.75rem 1rem', fontSize: '0.85rem' }}>{offerDate}</td>
-                      {isOwnProduct && (
-                        <td style={{ padding: '0.5rem 1rem' }}>
-                          {offer.offerStatus === 'PENDING' ? (
+                {(() => {
+                  const hasAcceptedOffer = offersList.some(o => o.offerStatus === 'ACCEPTED');
+                  return offersList.map((offer) => {
+                    const offerDate = new Date(offer.createAt).toLocaleString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    });
+                    return (
+                      <tr key={offer.id}>
+                        <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>
+                          {buyerNames[offer.buyerId] || `Buyer #${offer.buyerId}`}
+                        </td>
+                        <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: 'var(--clr-primary)' }}>
+                          {formatPrice(offer.price)}
+                        </td>
+                        <td style={{ padding: '0.75rem 1rem' }}>
+                          {offer.offerStatus === 'PENDING' && (
+                            <span className="badge badge-warning" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>PENDING</span>
+                          )}
+                          {offer.offerStatus === 'ACCEPTED' && (
+                            <span className="badge badge-success" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem' }}>ACCEPTED</span>
+                          )}
+                          {offer.offerStatus === 'REJECTED' && (
+                            <span className="badge badge-danger" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: 'hsl(0, 100%, 95%)', color: 'hsl(0, 100%, 40%)' }}>REJECTED</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.75rem 1rem', fontSize: '0.85rem' }}>{offerDate}</td>
+                        {isOwnProduct && (
+                          <td style={{ padding: '0.5rem 1rem' }}>
+                            {offer.offerStatus === 'PENDING' && !hasAcceptedOffer ? (
                             <button
                               className="btn btn-primary"
                               style={{
@@ -760,7 +907,8 @@ export default function ProductDetail() {
                       )}
                     </tr>
                   );
-                })}
+                });
+              })()}
               </tbody>
             </table>
           </div>
@@ -1055,6 +1203,207 @@ export default function ProductDetail() {
                     </>
                   ) : (
                     'Submit Offer'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Listing Modal */}
+      {isEditModalOpen && (
+        <div className="admin-modal-overlay" onClick={() => !editSubmitting && setIsEditModalOpen(false)} style={{ zIndex: 300 }}>
+          <div className="admin-modal anim-scale-in" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '520px' }}>
+            <div className="admin-modal-header">
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0, color: 'var(--clr-text-primary)' }}>
+                Edit Classified Listing
+              </h3>
+              <button
+                className="theme-switch"
+                onClick={() => setIsEditModalOpen(false)}
+                disabled={editSubmitting}
+                style={{ width: '32px', height: '32px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleEditSubmit}>
+              <div className="admin-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {editLoading ? (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem', gap: '0.5rem', color: 'var(--clr-text-secondary)' }}>
+                    <Loader2 size={24} className="anim-spin" />
+                    <span>Fetching latest details...</span>
+                  </div>
+                ) : (
+                  <>
+                    {editError && (
+                      <div
+                        className="badge badge-danger"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.75rem 1rem',
+                          borderRadius: 'var(--radius-sm)',
+                          width: '100%',
+                          textTransform: 'none',
+                          lineHeight: 1.4
+                        }}
+                      >
+                        <ShieldAlert size={16} style={{ flexShrink: 0 }} />
+                        {editError}
+                      </div>
+                    )}
+
+                    {/* Title */}
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="title">Listing Title</label>
+                      <input
+                        type="text"
+                        id="title"
+                        className="form-input"
+                        placeholder="e.g. iPhone 15 Pro"
+                        value={editForm.title}
+                        onChange={handleEditInputChange}
+                        required
+                        disabled={editSubmitting}
+                      />
+                    </div>
+
+                    {/* Description */}
+                    <div className="form-group">
+                      <label className="form-label" htmlFor="content">Description</label>
+                      <textarea
+                        id="content"
+                        className="form-input"
+                        style={{ minHeight: '80px', padding: '0.5rem 0.75rem', fontFamily: 'inherit', resize: 'vertical' }}
+                        placeholder="Description..."
+                        value={editForm.content}
+                        onChange={handleEditInputChange}
+                        required
+                        disabled={editSubmitting}
+                      />
+                    </div>
+
+                    {/* Category & Price */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="categoryId">Category</label>
+                        <select
+                          id="categoryId"
+                          className="form-input"
+                          value={editForm.categoryId}
+                          onChange={handleEditInputChange}
+                          disabled={editSubmitting}
+                        >
+                          {editCategories.map((cat) => (
+                            <option key={cat.id} value={cat.id}>
+                              {cat.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="price">Price (VND)</label>
+                        <input
+                          type="number"
+                          id="price"
+                          className="form-input"
+                          placeholder="Price..."
+                          value={editForm.price}
+                          onChange={handleEditInputChange}
+                          required
+                          disabled={editSubmitting}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Dimensions */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="width" style={{ fontSize: '0.75rem' }}>Width (cm)</label>
+                        <input
+                          type="number"
+                          step="any"
+                          id="width"
+                          className="form-input"
+                          placeholder="Width"
+                          value={editForm.width}
+                          onChange={handleEditInputChange}
+                          required
+                          disabled={editSubmitting}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="length" style={{ fontSize: '0.75rem' }}>Length (cm)</label>
+                        <input
+                          type="number"
+                          step="any"
+                          id="length"
+                          className="form-input"
+                          placeholder="Length"
+                          value={editForm.length}
+                          onChange={handleEditInputChange}
+                          required
+                          disabled={editSubmitting}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="height" style={{ fontSize: '0.75rem' }}>Height (cm)</label>
+                        <input
+                          type="number"
+                          step="any"
+                          id="height"
+                          className="form-input"
+                          placeholder="Height"
+                          value={editForm.height}
+                          onChange={handleEditInputChange}
+                          required
+                          disabled={editSubmitting}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label" htmlFor="weight" style={{ fontSize: '0.75rem' }}>Weight (g)</label>
+                        <input
+                          type="number"
+                          id="weight"
+                          className="form-input"
+                          placeholder="Weight"
+                          value={editForm.weight}
+                          onChange={handleEditInputChange}
+                          required
+                          disabled={editSubmitting}
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="admin-modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setIsEditModalOpen(false)}
+                  disabled={editSubmitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                  disabled={editSubmitting || editLoading}
+                >
+                  {editSubmitting ? (
+                    <>
+                      <Loader2 size={14} className="anim-spin" />
+                      Saving Changes...
+                    </>
+                  ) : (
+                    'Save Changes'
                   )}
                 </button>
               </div>

@@ -130,3 +130,16 @@ export const fetchOrderDetailsByPostId = async (postId) => {
   }
   return [];
 };
+
+export const fetchAllOrders = async () => {
+  const response = await apiFetch('https://cho-tot-production.up.railway.app/order');
+  if (!response.ok) {
+    throw new Error('Failed to fetch all orders');
+  }
+  const resData = await response.json();
+  if (resData.success && Array.isArray(resData.data)) {
+    return resData.data;
+  }
+  return [];
+};
+

@@ -146,4 +146,20 @@ export const acceptOffer = async (offerId) => {
   return await response.json();
 };
 
+export const updatePost = async (postId, postData) => {
+  const response = await apiFetch(`https://cho-tot-production.up.railway.app/post/update?id=${postId}`, {
+    method: 'PUT',
+    body: JSON.stringify(postData)
+  });
+  if (!response.ok) {
+    let errorMsg = 'Failed to update post';
+    try {
+      const errJSON = await response.json();
+      if (errJSON && errJSON.message) errorMsg = errJSON.message;
+    } catch (_) {}
+    throw new Error(errorMsg);
+  }
+  return await response.json();
+};
+
 
