@@ -5,6 +5,11 @@ import { apiFetch } from '../../services/api';
 import { fetchCategories } from '../../services/productService';
 import { saveUserAddress } from '../../services/userService';
 
+const DISTRICTS = [
+  'Quận 1', 'Quận 2', 'Quận 3', 'Quận 4', 'Quận 5', 'Quận 6', 'Quận 7', 'Quận 8', 'Quận 9', 'Quận 10', 'Quận 11', 'Quận 12',
+  'Quận Bình Tân', 'Quận Bình Thạnh', 'Quận Gò Vấp', 'Quận Phú Nhuận', 'Quận Tân Bình', 'Quận Tân Phú'
+];
+
 export default function UserListings() {
   const {
     userProfile,
@@ -775,16 +780,21 @@ export default function UserListings() {
                 {/* District */}
                 <div className="form-group">
                   <label className="form-label" htmlFor="district">District</label>
-                  <input
-                    type="text"
+                  <select
                     id="district"
                     className="form-input"
-                    placeholder="e.g. quận Bình Thạnh"
                     value={addressForm.district}
                     onChange={handleAddressInputChange}
                     required
                     disabled={addressSubmitting}
-                  />
+                  >
+                    <option value="">-- Chọn Quận/Huyện --</option>
+                    {DISTRICTS.map((dist) => (
+                      <option key={dist} value={dist}>
+                        {dist}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* City */}

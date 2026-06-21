@@ -1,9 +1,14 @@
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { ShopContext } from '../../context/ShopContext';
-import { ArrowLeft, Phone, MessageCircle, MapPin, Calendar, User, Send, ShieldAlert, Check, Loader2, Tag, X, Edit } from 'lucide-react';
+import { ArrowLeft, Phone, MessageCircle, MapPin, Calendar, User, Send, ShieldAlert, Check, Loader2, Tag, X, Edit, AlertCircle } from 'lucide-react';
 import { fetchPostById, fetchOffersByPostId, createOffer, acceptOffer, fetchCategories, updatePost } from '../../services/productService';
-import { fetchUserProfile, fetchUserAddress } from '../../services/userService';
+import { fetchUserProfile, fetchUserAddress, saveUserAddress } from '../../services/userService';
 import { generateSlug } from '../../utils/slug';
+
+const DISTRICTS = [
+  'Quận 1', 'Quận 2', 'Quận 3', 'Quận 4', 'Quận 5', 'Quận 6', 'Quận 7', 'Quận 8', 'Quận 9', 'Quận 10', 'Quận 11', 'Quận 12',
+  'Quận Bình Tân', 'Quận Bình Thạnh', 'Quận Gò Vấp', 'Quận Phú Nhuận', 'Quận Tân Bình', 'Quận Tân Phú'
+];
 
 export default function ProductDetail() {
   const {
@@ -36,6 +41,17 @@ export default function ProductDetail() {
   // Offer acceptance states
   const [acceptingOfferId, setAcceptingOfferId] = useState(null);
   const [acceptError, setAcceptError] = useState(null);
+
+  // Address states
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [addressForm, setAddressForm] = useState({
+    street: '',
+    ward: 'phường',
+    district: '',
+    city: 'Hồ Chí Minh'
+  });
+  const [addressSubmitting, setAddressSubmitting] = useState(false);
+  const [addressError, setAddressError] = useState(null);
 
   // Edit listing states
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -336,7 +352,7 @@ export default function ProductDetail() {
     setIsChatOpen(true);
   };
 
-  const handleOpenOfferModal = () => {
+  const handleOpenOfferModal = async () => {
     if (!currentUser) {
       setIsAuthModalOpen(true);
       return;
@@ -345,7 +361,67 @@ export default function ProductDetail() {
     setOfferSubmitting(false);
     setOfferSubmitError(null);
     setOfferSuccessMsg(null);
-    setIsOfferModalOpen(true);
+
+    try {
+      const address = await fetchUserAddress(currentUser.id);
+      if (!address) {
+        setAddressForm({
+          street: '',
+          ward: 'phường',
+          district: '',
+          city: 'Hồ Chí Minh'
+        });
+        setAddressError(null);
+        setAddressSubmitting(false);
+        setIsAddressModalOpen(true);
+      } else {
+        setIsOfferModalOpen(true);
+      }
+    } catch (err) {
+      console.error('Failed to verify user address:', err);
+      setIsOfferModalOpen(true);
+    }
+  };
+
+  const handleAddressInputChange = (e) => {
+    const { id, value } = e.target;
+    setAddressForm((prev) => ({ ...prev, [id]: value }));
+  };
+
+  const handleAddressSubmit = async (e) => {
+    e.preventDefault();
+    if (!currentUser) return;
+    setAddressSubmitting(true);
+    setAddressError(null);
+
+    let wardValue = addressForm.ward.trim();
+    if (!wardValue.toLowerCase().startsWith('phường')) {
+      wardValue = `phường ${wardValue}`.trim();
+    }
+
+    try {
+      await saveUserAddress({
+        userId: Number(currentUser.id),
+        street: addressForm.street.trim(),
+        ward: wardValue,
+        district: addressForm.district.trim(),
+        city: 'Hồ Chí Minh'
+      });
+
+      setAddressForm({
+        street: '',
+        ward: 'phường',
+        district: '',
+        city: 'Hồ Chí Minh'
+      });
+      setIsAddressModalOpen(false);
+      setIsOfferModalOpen(true);
+    } catch (err) {
+      console.error('Save address error:', err);
+      setAddressError(err.message || 'An error occurred while saving the address.');
+    } finally {
+      setAddressSubmitting(false);
+    }
   };
 
   const handleOfferSubmit = async (e) => {
@@ -1404,6 +1480,142 @@ export default function ProductDetail() {
                     </>
                   ) : (
                     'Save Changes'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADD NEW ADDRESS MODAL DIALOG */}
+      {isAddressModalOpen && (
+        <div className="admin-modal-overlay" onClick={() => !addressSubmitting && setIsAddressModalOpen(false)} style={{ zIndex: 300 }}>
+          <div className="admin-modal anim-scale-in" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '460px' }}>
+            <div className="admin-modal-header">
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, margin: 0, color: 'var(--clr-text-primary)' }}>
+                Add New Address
+              </h3>
+              <button
+                className="theme-switch"
+                onClick={() => setIsAddressModalOpen(false)}
+                disabled={addressSubmitting}
+                style={{ width: '32px', height: '32px' }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddressSubmit}>
+              <div className="admin-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {addressError && (
+                  <div
+                    className="badge badge-danger"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.75rem 1rem',
+                      borderRadius: 'var(--radius-sm)',
+                      width: '100%',
+                      textTransform: 'none',
+                      lineHeight: 1.4
+                    }}
+                  >
+                    <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                    {addressError}
+                  </div>
+                )}
+
+                {/* Street */}
+                <div className="form-group">
+                  <label className="form-label" htmlFor="street">Street Address</label>
+                  <input
+                    type="text"
+                    id="street"
+                    className="form-input"
+                    placeholder="e.g. Số 1 Đặng Văn Ngữ"
+                    value={addressForm.street}
+                    onChange={handleAddressInputChange}
+                    required
+                    disabled={addressSubmitting}
+                    autoFocus
+                  />
+                </div>
+
+                {/* Ward */}
+                <div className="form-group">
+                  <label className="form-label" htmlFor="ward">Ward</label>
+                  <input
+                    type="text"
+                    id="ward"
+                    className="form-input"
+                    placeholder="e.g. phường 26"
+                    value={addressForm.ward}
+                    onChange={handleAddressInputChange}
+                    required
+                    disabled={addressSubmitting}
+                  />
+                </div>
+
+                {/* District */}
+                <div className="form-group">
+                  <label className="form-label" htmlFor="district">District</label>
+                  <select
+                    id="district"
+                    className="form-input"
+                    value={addressForm.district}
+                    onChange={handleAddressInputChange}
+                    required
+                    disabled={addressSubmitting}
+                  >
+                    <option value="">-- Chọn Quận/Huyện --</option>
+                    {DISTRICTS.map((dist) => (
+                      <option key={dist} value={dist}>
+                        {dist}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* City */}
+                <div className="form-group">
+                  <label className="form-label" htmlFor="city">City</label>
+                  <input
+                    type="text"
+                    id="city"
+                    className="form-input"
+                    placeholder="Hồ Chí Minh"
+                    value={addressForm.city}
+                    onChange={handleAddressInputChange}
+                    required
+                    disabled={true}
+                  />
+                </div>
+              </div>
+
+              <div className="admin-modal-footer">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setIsAddressModalOpen(false)}
+                  disabled={addressSubmitting}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                  disabled={addressSubmitting}
+                >
+                  {addressSubmitting ? (
+                    <>
+                      <Loader2 size={14} className="anim-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Address'
                   )}
                 </button>
               </div>

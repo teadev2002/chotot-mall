@@ -31,6 +31,9 @@ export const signIn = async (email, password) => {
 
     setCookie('accessToken', token);
     setCookie('currentUserEmail', email.trim());
+    localStorage.setItem('accessToken', token);
+    localStorage.setItem('currentUserEmail', email.trim());
+    localStorage.setItem('currentUserName', email.trim().split('@')[0]);
 
     const decoded = decodeJwt(token);
     if (!decoded) {

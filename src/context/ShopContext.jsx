@@ -22,7 +22,7 @@ export const ShopProvider = ({ children }) => {
   // Theme & View States
   const [theme, setTheme] = useState(() => getCookie('theme') || 'light');
   const [view, setView] = useState(() => {
-    const token = getCookie('accessToken');
+    const token = localStorage.getItem('accessToken') || getCookie('accessToken');
     if (token) {
       let cleanToken = decodeURIComponent(token).trim();
       cleanToken = cleanToken.replace(/^["']|["']$/g, '').trim();
@@ -30,6 +30,13 @@ export const ShopProvider = ({ children }) => {
       if (decoded && decoded.role === 'ADMIN' && decoded.exp * 1000 > Date.now()) {
         return 'admin';
       }
+    }
+    const path = window.location.pathname;
+    if (path === '/my-offers' || path.startsWith('/order/')) {
+      return 'my-offers';
+    }
+    if (path.startsWith('/user/')) {
+      return 'user-listings';
     }
     return 'storefront';
   });
@@ -66,7 +73,7 @@ export const ShopProvider = ({ children }) => {
   });
 
   const [currentUser, setCurrentUser] = useState(() => {
-    const token = getCookie('accessToken');
+    const token = localStorage.getItem('accessToken') || getCookie('accessToken');
     if (!token) return null;
 
     let cleanToken = decodeURIComponent(token).trim();
@@ -74,16 +81,20 @@ export const ShopProvider = ({ children }) => {
 
     const decoded = decodeJwt(cleanToken);
     if (decoded && decoded.exp * 1000 > Date.now()) {
-      const email = decoded.email || getCookie('currentUserEmail') || 'user@example.com';
+      const email = localStorage.getItem('currentUserEmail') || getCookie('currentUserEmail') || decoded.email || 'user@example.com';
+      const name = localStorage.getItem('currentUserName') || getCookie('currentUserName') || decoded.name || email.split('@')[0];
       return {
         id: decoded.sub,
-        name: decoded.name || email.split('@')[0],
+        name,
         email,
         role: decoded.role || 'CUSTOMER',
         token: cleanToken
       };
     }
     deleteCookie('accessToken');
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('currentUserEmail');
+    localStorage.removeItem('currentUserName');
     return null;
   });
 
@@ -132,9 +143,9 @@ export const ShopProvider = ({ children }) => {
         rawToken = hashParams.get('accessToken') || hashParams.get('token') || hashParams.get('access_token');
       }
 
-      // 3. Cookie (ưu tiên cao nhất hiện tại)
+      // 3. Cookie/LocalStorage (ưu tiên cao nhất hiện tại)
       if (!rawToken) {
-        rawToken = getCookie('accessToken');
+        rawToken = localStorage.getItem('accessToken') || getCookie('accessToken');
       }
 
       // 4. Backend code exchange nếu có code
@@ -187,11 +198,14 @@ export const ShopProvider = ({ children }) => {
           }
 
           const role = decoded.role || 'CUSTOMER';
-          const email = decoded.email || `user-${decoded.sub}@gmail.com`;
-          const name = decoded.name || email.split('@')[0];
+          const email = localStorage.getItem('currentUserEmail') || getCookie('currentUserEmail') || decoded.email || `user-${decoded.sub}@gmail.com`;
+          const name = localStorage.getItem('currentUserName') || getCookie('currentUserName') || decoded.name || email.split('@')[0];
 
           setCookie('accessToken', cleanToken);
           setCookie('currentUserEmail', email);
+          localStorage.setItem('accessToken', cleanToken);
+          localStorage.setItem('currentUserEmail', email);
+          localStorage.setItem('currentUserName', name);
 
           const loggedUser = {
             id: decoded.sub,
@@ -386,6 +400,9 @@ export const ShopProvider = ({ children }) => {
     setCurrentUser(null);
     deleteCookie('accessToken');
     deleteCookie('currentUserEmail');
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('currentUserEmail');
+    localStorage.removeItem('currentUserName');
     setView('storefront');
   };
 

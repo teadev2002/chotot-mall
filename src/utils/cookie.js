@@ -20,14 +20,13 @@ export const getRawCookie = (name) => {
 };
 
 export const getCookie = (name) => {
-  // Ưu tiên cookie không HttpOnly
-  let val = getRawCookie('accessToken_frontend');
-  if (val) return val;
+  // Nếu là accessToken, ưu tiên cookie không HttpOnly
+  if (name === 'accessToken') {
+    let val = getRawCookie('accessToken_frontend');
+    if (val) return val;
+  }
 
-  val = getRawCookie('accessToken');
-  if (val) return val;
-
-  return null;
+  return getRawCookie(name);
 };
 
 export const deleteCookie = (name) => {
