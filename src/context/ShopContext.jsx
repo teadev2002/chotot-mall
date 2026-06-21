@@ -41,6 +41,9 @@ export const ShopProvider = ({ children }) => {
     return 'storefront';
   });
   const [adminTab, setAdminTab] = useState('dashboard'); // 'dashboard', 'products', 'customers'
+  const [isRestoringPost, setIsRestoringPost] = useState(() => {
+    return window.location.pathname.startsWith('/post/');
+  });
 
   // Data States
   const [products, setProducts] = useState([]); // Will store API posts
@@ -241,19 +244,6 @@ export const ShopProvider = ({ children }) => {
     }
   }, [currentUser]);
 
-  // Restore post detailed view on refresh if pathname matches /post/:slug
-  useEffect(() => {
-    if (products.length === 0) return;
-    const path = window.location.pathname;
-    if (path.startsWith('/post/')) {
-      const urlSlug = decodeURIComponent(path.substring(6)).trim();
-      const match = products.find((p) => generateSlug(p.title) === urlSlug);
-      if (match) {
-        setSelectedProductId(match.id);
-      }
-    }
-  }, [products]);
-
   // Sync selectedProductId with URL path (specifically, handle back to storefront reset to /)
   useEffect(() => {
     if (selectedProductId === null && products.length > 0) {
@@ -287,8 +277,20 @@ export const ShopProvider = ({ children }) => {
         );
         
         setProducts(detailedMapped);
+
+        // Restore post detailed view on refresh if pathname matches /post/:slug
+        const path = window.location.pathname;
+        if (path.startsWith('/post/')) {
+          const urlSlug = decodeURIComponent(path.substring(6)).trim();
+          const match = detailedMapped.find((p) => generateSlug(p.title) === urlSlug);
+          if (match) {
+            setSelectedProductId(match.id);
+          }
+        }
       } catch (err) {
         console.error('Failed to load posts for storefront:', err);
+      } finally {
+        setIsRestoringPost(false);
       }
     };
 
@@ -419,6 +421,7 @@ export const ShopProvider = ({ children }) => {
         customers,
         selectedProductId,
         setSelectedProductId,
+        isRestoringPost,
         searchQuery,
         setSearchQuery,
         selectedCategory,

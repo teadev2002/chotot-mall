@@ -24,11 +24,33 @@ function App() {
     setView,
     adminTab,
     setAdminTab,
-    selectedProductId
+    selectedProductId,
+    isRestoringPost
   } = useContext(ShopContext);
 
   // Render storefront dynamic states
   const renderStorefrontContent = () => {
+    if (isRestoringPost) {
+      return (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh', flexDirection: 'column', gap: '1rem' }}>
+          <div className="loading-spinner" style={{
+            width: '40px',
+            height: '40px',
+            border: '3px solid var(--clr-border, rgba(0,0,0,0.1))',
+            borderTop: '3px solid var(--clr-primary, #007bff)',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }} />
+          <style>{`
+            @keyframes spin {
+              0% { transform: rotate(0deg); }
+              100% { transform: rotate(360deg); }
+            }
+          `}</style>
+          <p style={{ color: 'var(--clr-text-secondary, #666)', fontSize: '0.95rem', fontFamily: 'var(--font-sans)' }}>Loading post details...</p>
+        </div>
+      );
+    }
     if (selectedProductId !== null) {
       return <ProductDetail />;
     }
