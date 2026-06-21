@@ -256,13 +256,13 @@ export const ShopProvider = ({ children }) => {
 
   // Sync selectedProductId with URL path (specifically, handle back to storefront reset to /)
   useEffect(() => {
-    if (selectedProductId === null) {
+    if (selectedProductId === null && products.length > 0) {
       const path = window.location.pathname;
       if (path.startsWith('/post/')) {
         window.history.pushState(null, '', '/');
       }
     }
-  }, [selectedProductId]);
+  }, [selectedProductId, products]);
 
   // Fetch all posts from the API and map them to products
   useEffect(() => {
