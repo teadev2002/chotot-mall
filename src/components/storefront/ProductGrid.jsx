@@ -2,6 +2,7 @@ import React, { useContext, useState, useEffect } from 'react';
 import { ShopContext } from '../../context/ShopContext';
 import { SlidersHorizontal, Eye, MapPin, Calendar } from 'lucide-react';
 import { fetchUserAddress, fetchAllOrders } from '../../services/userService';
+import { EyeOutlined } from '@ant-design/icons';
 
 export default function ProductGrid() {
   const {
@@ -324,7 +325,7 @@ export default function ProductGrid() {
                         <span className="product-card-price" style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--clr-primary)' }}>
                           {formatPrice(prod.price)}
                         </span>
-                        
+
                         {isSoldOut ? (
                           <button
                             className="btn btn-secondary"
@@ -356,8 +357,8 @@ export default function ProductGrid() {
                             onClick={() => setSelectedProductId(prod.id)}
                             title="View Details"
                           >
-                            <Eye size={14} />
-                            Details
+
+                            <EyeOutlined />
                           </button>
                         )}
                       </div>

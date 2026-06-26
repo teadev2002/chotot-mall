@@ -35,6 +35,9 @@ export const ShopProvider = ({ children }) => {
     if (path === '/my-offers' || path.startsWith('/order/')) {
       return 'my-offers';
     }
+    if (path === '/inbox') {
+      return 'inbox';
+    }
     if (path.startsWith('/user/')) {
       return 'user-listings';
     }

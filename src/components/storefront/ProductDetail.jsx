@@ -1,5 +1,6 @@
 import React, { useState, useContext, useEffect, useRef } from 'react';
 import { ShopContext } from '../../context/ShopContext';
+import { ChatContext } from '../../context/ChatContext';
 import { ArrowLeft, Phone, MessageCircle, MapPin, Calendar, User, Send, ShieldAlert, Check, Loader2, Tag, X, Edit, AlertCircle } from 'lucide-react';
 import { fetchPostById, fetchOffersByPostId, createOffer, acceptOffer, fetchCategories, updatePost } from '../../services/productService';
 import { fetchUserProfile, fetchUserAddress, saveUserAddress } from '../../services/userService';
@@ -22,12 +23,25 @@ export default function ProductDetail() {
     loadUserListings
   } = useContext(ShopContext);
 
+  const {
+    isChatOpen,
+    setIsChatOpen,
+    activeConversationId,
+    messages: chatMessages,
+    chatLoading,
+    chatError,
+    startChat,
+    closeChat,
+    sendMessage
+  } = useContext(ChatContext);
+
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   // Offers states
   const [offersList, setOffersList] = useState([]);
+  const hasAcceptedOffer = offersList.some(o => o.offerStatus === 'ACCEPTED');
   const [offersLoading, setOffersLoading] = useState(false);
   const [offersError, setOffersError] = useState(null);
 
@@ -115,10 +129,7 @@ export default function ProductDetail() {
   // Classifieds interactions states
   const [phoneRevealed, setPhoneRevealed] = useState(false);
   const [phoneCopied, setPhoneCopied] = useState(false);
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState([]);
-  const [isTyping, setIsTyping] = useState(false);
 
   const messagesEndRef = useRef(null);
 
@@ -266,12 +277,12 @@ export default function ProductDetail() {
     window.scrollTo(0, 0);
   }, [selectedProductId, products, currentUser]);
 
-  // Scroll to bottom when new chat messages arrive or seller is typing
+  // Scroll to bottom when new chat messages arrive
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [chatMessages, isTyping]);
+  }, [chatMessages]);
 
   // Loading indicator overlay
   if (loading) {
@@ -344,17 +355,25 @@ export default function ProductDetail() {
     }
   };
 
-  const handleOpenChat = () => {
+  const handleOpenChat = async () => {
     if (!currentUser) {
       setIsAuthModalOpen(true);
       return;
     }
-    setIsChatOpen(true);
+    try {
+      await startChat(product.id, product.authorId);
+    } catch (err) {
+      alert(err.message || 'Could not start chat with seller');
+    }
   };
 
   const handleOpenOfferModal = async () => {
     if (!currentUser) {
       setIsAuthModalOpen(true);
+      return;
+    }
+    if (hasAcceptedOffer) {
+      alert('An offer has already been accepted for this listing. Making new offers is locked.');
       return;
     }
     setOfferPrice('');
@@ -426,6 +445,10 @@ export default function ProductDetail() {
 
   const handleOfferSubmit = async (e) => {
     e.preventDefault();
+    if (hasAcceptedOffer) {
+      setOfferSubmitError('An offer has already been accepted for this listing. Making new offers is locked.');
+      return;
+    }
     if (!offerPrice || isNaN(offerPrice) || Number(offerPrice) <= 0) {
       setOfferSubmitError('Please enter a valid offer price');
       return;
@@ -620,34 +643,8 @@ export default function ProductDetail() {
   const handleSendMessage = (e) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
-
-    const userMessage = chatInput;
-    setChatMessages((prev) => [...prev, { sender: 'buyer', text: userMessage, time: 'Just now' }]);
+    sendMessage(chatInput);
     setChatInput('');
-
-    // Trigger mock auto-reply after 1.2s delay
-    setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-
-      const lowerMsg = userMessage.toLowerCase();
-      let reply = "I can meet you this weekend to show it to you. Let me know what time works best!";
-
-      if (lowerMsg.includes('price') || lowerMsg.includes('discount') || lowerMsg.includes('cheap')) {
-        reply = `The price is negotiable, but I cannot go too low. What price were you thinking?`;
-      } else if (lowerMsg.includes('condition') || lowerMsg.includes('new') || lowerMsg.includes('damage')) {
-        reply = `It is in good condition, exactly as shown in the pictures. Feel free to inspect it in person before buying.`;
-      } else if (lowerMsg.includes('where') || lowerMsg.includes('address') || lowerMsg.includes('meet')) {
-        const locStr = sellerAddress 
-          ? `${sellerAddress.ward}, ${sellerAddress.district}, ${sellerAddress.city}`
-          : (product.location || 'District 1, HCMC');
-        reply = `I am located around ${locStr}. Where are you coming from?`;
-      } else if (lowerMsg.includes('original') || lowerMsg.includes('box') || lowerMsg.includes('receipt')) {
-        reply = `I don't have the original purchase receipt, but you are welcome to verify and test the serial number.`;
-      }
-
-      setChatMessages((prev) => [...prev, { sender: 'seller', text: reply, time: 'Just now' }]);
-    }, 1200);
   };
 
   const formattedDate = new Date(product.createdAt).toLocaleDateString('en-US', {
@@ -698,7 +695,7 @@ export default function ProductDetail() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <MapPin size={16} style={{ color: 'var(--clr-primary)' }} />
               <strong>
-                {sellerAddress 
+                {sellerAddress
                   ? `${sellerAddress.street}, ${sellerAddress.ward}, ${sellerAddress.district}, ${sellerAddress.city}`
                   : (product.location || 'Ho Chi Minh City, Vietnam')}
               </strong>
@@ -738,6 +735,24 @@ export default function ProductDetail() {
             <h3 style={{ fontSize: '1rem', fontWeight: 700, margin: 0, color: 'var(--clr-text-primary)' }}>
               {isOwnProduct ? 'Manage Your Listing' : 'Interested in this item? Contact Seller'}
             </h3>
+
+            {hasAcceptedOffer && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                color: 'var(--clr-danger, #ef4444)',
+                background: 'var(--clr-danger-light, #fef2f2)',
+                border: '1px solid hsla(var(--danger), 0.2)',
+                padding: '0.75rem 1rem',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '0.9rem',
+                fontWeight: 500
+              }}>
+                <ShieldAlert size={16} />
+                <span>An offer has been accepted for this listing. Making new offers is locked.</span>
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
               {isOwnProduct && (
@@ -804,6 +819,7 @@ export default function ProductDetail() {
               {!isOwnProduct && (
                 <button
                   className="btn btn-secondary"
+                  disabled={hasAcceptedOffer}
                   style={{
                     flex: 1,
                     minWidth: '200px',
@@ -812,12 +828,15 @@ export default function ProductDetail() {
                     justifyContent: 'center',
                     gap: '0.5rem',
                     padding: '0.85rem',
-                    border: '1px solid var(--clr-border)'
+                    border: '1px solid var(--clr-border)',
+                    cursor: hasAcceptedOffer ? 'not-allowed' : 'pointer',
+                    opacity: hasAcceptedOffer ? 0.6 : 1,
+                    backgroundColor: hasAcceptedOffer ? 'var(--clr-bg-app)' : 'transparent'
                   }}
                   onClick={handleOpenOfferModal}
                 >
-                  <Tag size={18} style={{ color: 'var(--clr-primary)' }} />
-                  <span>Make Offer</span>
+                  <Tag size={18} style={{ color: hasAcceptedOffer ? 'var(--clr-text-muted)' : 'var(--clr-primary)' }} />
+                  <span>{hasAcceptedOffer ? 'Offer Accepted (Locked)' : 'Make Offer'}</span>
                 </button>
               )}
             </div>
@@ -841,7 +860,7 @@ export default function ProductDetail() {
               <tr>
                 <td style={{ fontWeight: 600 }}>Location</td>
                 <td>
-                  {sellerAddress 
+                  {sellerAddress
                     ? `${sellerAddress.street}, ${sellerAddress.ward}, ${sellerAddress.district}, ${sellerAddress.city}`
                     : (product.location || 'Ho Chi Minh City, Vietnam')}
                 </td>
@@ -910,7 +929,7 @@ export default function ProductDetail() {
             <table className="admin-table" style={{ background: 'var(--clr-bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--clr-border)' }}>
               <thead>
                 <tr style={{ background: 'var(--clr-bg-app)' }}>
-                  <th style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.85rem' }}>Buyer ID</th>
+                  <th style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.85rem' }}>Buyer Name</th>
                   <th style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.85rem' }}>Offered Price</th>
                   <th style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.85rem' }}>Offer Status</th>
                   <th style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.85rem' }}>Submitted At</th>
@@ -951,40 +970,40 @@ export default function ProductDetail() {
                         {isOwnProduct && (
                           <td style={{ padding: '0.5rem 1rem' }}>
                             {offer.offerStatus === 'PENDING' && !hasAcceptedOffer ? (
-                            <button
-                              className="btn btn-primary"
-                              style={{
-                                padding: '0.25rem 0.75rem',
-                                fontSize: '0.75rem',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '0.25rem',
-                                borderRadius: 'var(--radius-sm)',
-                                color: '#ffffff'
-                              }}
-                              onClick={() => handleAcceptOffer(offer.id)}
-                              disabled={acceptingOfferId === offer.id}
-                            >
-                              {acceptingOfferId === offer.id ? (
-                                <>
-                                  <Loader2 size={12} className="anim-spin" />
-                                  Accepting...
-                                </>
-                              ) : (
-                                'Accept'
-                              )}
-                            </button>
-                          ) : (
-                            <span style={{ fontSize: '0.8rem', color: 'var(--clr-text-muted)', fontStyle: 'italic' }}>
-                              No Actions
-                            </span>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  );
-                });
-              })()}
+                              <button
+                                className="btn btn-primary"
+                                style={{
+                                  padding: '0.25rem 0.75rem',
+                                  fontSize: '0.75rem',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
+                                  borderRadius: 'var(--radius-sm)',
+                                  color: '#ffffff'
+                                }}
+                                onClick={() => handleAcceptOffer(offer.id)}
+                                disabled={acceptingOfferId === offer.id}
+                              >
+                                {acceptingOfferId === offer.id ? (
+                                  <>
+                                    <Loader2 size={12} className="anim-spin" />
+                                    Accepting...
+                                  </>
+                                ) : (
+                                  'Accept'
+                                )}
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: '0.8rem', color: 'var(--clr-text-muted)', fontStyle: 'italic' }}>
+                                No Actions
+                              </span>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
           </div>
@@ -1040,7 +1059,7 @@ export default function ProductDetail() {
                   fontSize: '0.8rem'
                 }}
               >
-                S
+                {sellerName ? sellerName.charAt(0).toUpperCase() : 'S'}
               </div>
               <div>
                 <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>Seller: {sellerName || `User #${product.authorId}`}</div>
@@ -1048,7 +1067,7 @@ export default function ProductDetail() {
               </div>
             </div>
             <button
-              onClick={() => setIsChatOpen(false)}
+              onClick={closeChat}
               style={{
                 background: 'none',
                 border: 'none',
@@ -1074,58 +1093,54 @@ export default function ProductDetail() {
               background: 'var(--clr-bg-app)'
             }}
           >
-            {chatMessages.map((msg, idx) => {
-              const isSeller = msg.sender === 'seller';
-              return (
-                <div
-                  key={idx}
-                  style={{
-                    alignSelf: isSeller ? 'flex-start' : 'flex-end',
-                    maxWidth: '80%',
-                    background: isSeller ? 'var(--clr-bg-card)' : 'var(--clr-primary)',
-                    color: isSeller ? 'var(--clr-text-primary)' : 'white',
-                    padding: '0.65rem 0.85rem',
-                    borderRadius: isSeller ? '0 12px 12px 12px' : '12px 12px 0 12px',
-                    border: isSeller ? '1px solid var(--clr-border)' : 'none',
-                    fontSize: '0.85rem',
-                    boxShadow: 'var(--shadow-sm)'
-                  }}
-                >
-                  <div>{msg.text}</div>
+            {chatLoading ? (
+              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', gap: '0.5rem', color: 'var(--clr-text-secondary)' }}>
+                <Loader2 size={24} className="anim-spin" style={{ color: 'var(--clr-primary)' }} />
+                <span style={{ fontSize: '0.85rem' }}>Loading conversation...</span>
+              </div>
+            ) : chatError ? (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '1rem', color: 'var(--clr-danger)', fontSize: '0.85rem', textAlign: 'center' }}>
+                {chatError}
+              </div>
+            ) : chatMessages.length === 0 ? (
+              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '1rem', color: 'var(--clr-text-muted)', fontSize: '0.85rem', textAlign: 'center', fontStyle: 'italic' }}>
+                No messages yet. Say hello to start the conversation!
+              </div>
+            ) : (
+              chatMessages.map((msg, idx) => {
+                const isMine = msg.senderId === currentUser?.id;
+                const timeStr = msg.createdAt
+                  ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : 'Just now';
+                return (
                   <div
+                    key={msg.id || idx}
                     style={{
-                      fontSize: '0.65rem',
-                      opacity: 0.6,
-                      textAlign: 'right',
-                      marginTop: '0.25rem'
+                      alignSelf: isMine ? 'flex-end' : 'flex-start',
+                      maxWidth: '80%',
+                      background: isMine ? 'var(--clr-primary)' : 'var(--clr-bg-card)',
+                      color: isMine ? 'white' : 'var(--clr-text-primary)',
+                      padding: '0.65rem 0.85rem',
+                      borderRadius: isMine ? '12px 12px 0 12px' : '0 12px 12px 12px',
+                      border: isMine ? 'none' : '1px solid var(--clr-border)',
+                      fontSize: '0.85rem',
+                      boxShadow: 'var(--shadow-sm)'
                     }}
                   >
-                    {msg.time}
+                    <div>{msg.content}</div>
+                    <div
+                      style={{
+                        fontSize: '0.65rem',
+                        opacity: 0.6,
+                        textAlign: 'right',
+                        marginTop: '0.25rem'
+                      }}
+                    >
+                      {timeStr}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-
-            {isTyping && (
-              <div
-                style={{
-                  alignSelf: 'flex-start',
-                  background: 'var(--clr-bg-card)',
-                  color: 'var(--clr-text-secondary)',
-                  padding: '0.5rem 0.85rem',
-                  borderRadius: '0 12px 12px 12px',
-                  border: '1px solid var(--clr-border)',
-                  fontSize: '0.85rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem'
-                }}
-              >
-                <span style={{ fontSize: '0.75rem' }}>Typing</span>
-                <span className="anim-pulse" style={{ animationDelay: '0s' }}>•</span>
-                <span className="anim-pulse" style={{ animationDelay: '0.2s' }}>•</span>
-                <span className="anim-pulse" style={{ animationDelay: '0.4s' }}>•</span>
-              </div>
+                );
+              })
             )}
 
             <div ref={messagesEndRef} />
@@ -1154,6 +1169,7 @@ export default function ProductDetail() {
               placeholder="Ask the seller about the item..."
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
+              disabled={chatLoading}
             />
             <button
               type="submit"
@@ -1168,6 +1184,7 @@ export default function ProductDetail() {
                 justifyContent: 'center',
                 flexShrink: 0
               }}
+              disabled={chatLoading}
             >
               <Send size={14} />
             </button>

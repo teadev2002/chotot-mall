@@ -36,7 +36,7 @@ export default function ProductManagement() {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch('https://cho-tot-production.up.railway.app/post/all');
+        const response = await fetch('https://cho-tot-production.up.railway.app/post/all?page=1&limit=50');
         if (!response.ok) {
           throw new Error(`Failed to fetch posts from server (Status: ${response.status})`);
         }

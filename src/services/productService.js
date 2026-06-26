@@ -1,7 +1,7 @@
 import { apiFetch } from './api';
 
 export const fetchAllPosts = async () => {
-  const response = await apiFetch('https://cho-tot-production.up.railway.app/post/all');
+  const response = await apiFetch('https://cho-tot-production.up.railway.app/post/all?page=1&limit=10');
   if (!response.ok) throw new Error('API failed to fetch posts');
   
   const resData = await response.json();

@@ -172,6 +172,28 @@ export default function Header() {
                     >
                       My Offers
                     </button>
+
+                    <button
+                      style={{
+                        padding: '0.5rem 1rem',
+                        background: 'none',
+                        border: 'none',
+                        textAlign: 'left',
+                        color: 'var(--clr-text-primary)',
+                        cursor: 'pointer',
+                        fontSize: '0.85rem',
+                        width: '100%'
+                      }}
+                      className="dropdown-item"
+                      onClick={() => {
+                        setIsDropdownOpen(false);
+                        setView('inbox');
+                        setSelectedProductId(null);
+                        window.history.pushState({ view: 'inbox' }, '', '/inbox');
+                      }}
+                    >
+                      Inbox
+                    </button>
                     
                     {currentUser.role === 'ADMIN' && (
                       <button

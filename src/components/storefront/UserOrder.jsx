@@ -4,6 +4,7 @@ import { fetchUserOrders, fetchUserProfile, updateUserOrder, fetchOrderDetailsBy
 import { fetchPostById, fetchOffersByPostId } from '../../services/productService';
 import { ArrowLeft, Loader2, Calendar, ShoppingBag, User, Tag } from 'lucide-react';
 import { Steps } from 'antd';
+import { EyeOutlined } from '@ant-design/icons';
 
 export default function UserOrder() {
   const { setView, currentUser, formatPrice, setSelectedProductId } = useContext(ShopContext);
@@ -92,7 +93,7 @@ export default function UserOrder() {
         const post = await fetchPostById(postId);
         if (post) {
           postTitle = post.title;
-          
+
           let resolvedImg = post.image;
           if (!resolvedImg && Array.isArray(post.images) && post.images.length > 0) {
             const avatarImg = post.images.find(img => img.isAvatar) || post.images[0];
@@ -246,7 +247,7 @@ export default function UserOrder() {
         const path = window.location.pathname;
         if (path.startsWith('/order/')) {
           const orderCodeOrId = path.substring(7);
-          const targetOrder = ordersData.find(o => 
+          const targetOrder = ordersData.find(o =>
             (o.codeId && String(o.codeId) === orderCodeOrId) || String(o.id) === orderCodeOrId
           );
           if (targetOrder) {
@@ -492,9 +493,9 @@ export default function UserOrder() {
                         value={selectedOrderDetails.status}
                         onChange={(e) => handleStatusChange(selectedOrderDetails.orderId, e.target.value)}
                         className={`font-bold border-0 bg-transparent focus:ring-0 outline-none text-center cursor-pointer text-base uppercase p-1 ${selectedOrderDetails.status === 'PENDING' ? 'text-orange-500' :
-                            selectedOrderDetails.status === 'ACCEPTED' ? 'text-green-600' :
-                              selectedOrderDetails.status === 'CANCELED' ? 'text-red-600' :
-                                selectedOrderDetails.status === 'COMPLETED' ? 'text-blue-600' : 'text-gray-800'
+                          selectedOrderDetails.status === 'ACCEPTED' ? 'text-green-600' :
+                            selectedOrderDetails.status === 'CANCELED' ? 'text-red-600' :
+                              selectedOrderDetails.status === 'COMPLETED' ? 'text-blue-600' : 'text-gray-800'
                           }`}
                       >
                         <option value="PENDING" className="text-orange-500 font-bold bg-white">PENDING</option>
@@ -504,9 +505,9 @@ export default function UserOrder() {
                     )
                   ) : (
                     <span className={`font-bold text-base uppercase ${selectedOrderDetails.status === 'PENDING' ? 'text-orange-500' :
-                        selectedOrderDetails.status === 'ACCEPTED' ? 'text-green-600' :
-                          selectedOrderDetails.status === 'CANCELED' ? 'text-red-600' :
-                            selectedOrderDetails.status === 'COMPLETED' ? 'text-blue-600' : 'text-gray-800'
+                      selectedOrderDetails.status === 'ACCEPTED' ? 'text-green-600' :
+                        selectedOrderDetails.status === 'CANCELED' ? 'text-red-600' :
+                          selectedOrderDetails.status === 'COMPLETED' ? 'text-blue-600' : 'text-gray-800'
                       }`}>
                       {selectedOrderDetails.status}
                     </span>
@@ -522,9 +523,9 @@ export default function UserOrder() {
               <span className="text-xs uppercase font-bold text-gray-500 tracking-wider block mb-6">Order Tracking</span>
               {selectedOrderDetails.trackings && selectedOrderDetails.trackings.length > 0 ? (
                 <div className="bg-gray-50 rounded-xl p-6 border border-gray-100 shadow-inner">
-                  <Steps 
-                    current={getTrackingProgress(selectedOrderDetails.trackings).currentStepIndex} 
-                    items={getTrackingProgress(selectedOrderDetails.trackings).items} 
+                  <Steps
+                    current={getTrackingProgress(selectedOrderDetails.trackings).currentStepIndex}
+                    items={getTrackingProgress(selectedOrderDetails.trackings).items}
                     size="small"
                   />
                 </div>
@@ -723,8 +724,8 @@ export default function UserOrder() {
                     ) : (
                       <span
                         className={`badge ${order.orderStatus === 'ACCEPTED' ? 'badge-success' :
-                            order.orderStatus === 'COMPLETED' ? 'badge-primary' :
-                              order.orderStatus === 'PENDING' ? 'badge-warning' : 'badge-danger'
+                          order.orderStatus === 'COMPLETED' ? 'badge-primary' :
+                            order.orderStatus === 'PENDING' ? 'badge-warning' : 'badge-danger'
                           }`}
                         style={{ textTransform: 'uppercase' }}
                       >
@@ -836,7 +837,7 @@ export default function UserOrder() {
                         style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem', borderRadius: 'var(--radius-sm)' }}
                         onClick={() => handleProductClick(order.postId)}
                       >
-                        View Listing
+                        <EyeOutlined />
                       </button>
                     </div>
                   </div>
