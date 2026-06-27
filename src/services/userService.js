@@ -143,9 +143,9 @@ export const updateUserOrder = async (orderId, orderStatus) => {
 };
 
 export const fetchOrderDetailsByPostId = async (postId) => {
-  const response = await apiFetch(`https://cho-tot-production.up.railway.app/order/get-order-by-post-id?postId=${postId}`);
+  const response = await apiFetch(`https://cho-tot-production.up.railway.app/offer/get-offer-by-post-id?postId=${postId}`);
   if (!response.ok) {
-    throw new Error('Failed to fetch order details by post ID');
+    throw new Error('Failed to fetch offer details by post ID');
   }
   const resData = await response.json();
   if (resData.success && Array.isArray(resData.data)) {

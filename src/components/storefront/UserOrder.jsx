@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { ShopContext } from '../../context/ShopContext';
 import { fetchUserOrders, fetchUserProfile, updateUserOrder, fetchOrderDetailsByPostId, fetchUserAddress, fetchOrderAndTracking } from '../../services/userService';
-import { fetchPostById, fetchOffersByPostId } from '../../services/productService';
+import { fetchPostById, fetchOffersByPostId, acceptOffer } from '../../services/productService';
 import { ArrowLeft, Loader2, Calendar, ShoppingBag, User, Tag } from 'lucide-react';
 import { Steps } from 'antd';
 import { EyeOutlined } from '@ant-design/icons';
+import { apiFetch } from '../../services/api';
 
 export default function UserOrder() {
   const { setView, currentUser, formatPrice, setSelectedProductId } = useContext(ShopContext);
@@ -39,6 +40,216 @@ export default function UserOrder() {
     }
   };
 
+  const loadOrdersData = async () => {
+    if (!currentUser) return;
+    try {
+      setLoading(true);
+      setError(null);
+
+      // 1. Fetch all orders (accepted offers)
+      const ordersData = await fetchUserOrders();
+
+      // 2. Fetch all sent offers (including pending)
+      let sentOffersData = [];
+      try {
+        const res = await apiFetch('https://cho-tot-production.up.railway.app/offer/get-all-offers-by-user');
+        if (res.ok) {
+          const json = await res.json();
+          if (json.success && Array.isArray(json.data)) {
+            sentOffersData = json.data;
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch sent offers:', err);
+      }
+
+      // 3. Fetch all received offers (by querying each post owned by the seller)
+      let receivedOffersData = [];
+      try {
+        const posts = await fetchUserPosts(currentUser.id);
+        const offersArrays = await Promise.all(
+          posts.map(async (p) => {
+            try {
+              return await fetchOffersByPostId(p.id);
+            } catch (_) {
+              return [];
+            }
+          })
+        );
+        receivedOffersData = offersArrays.flat();
+      } catch (err) {
+        console.error('Failed to fetch received offers:', err);
+      }
+
+      // Merge orders and offers
+      const mergedList = [];
+
+      // Add sent offers
+      sentOffersData.forEach(offer => {
+        const matchedOrder = ordersData.find(o => Number(o.postId) === Number(offer.postId) && Number(o.buyerId) === Number(currentUser.id));
+        mergedList.push({
+          id: matchedOrder?.id || `offer-${offer.id}`,
+          offerId: offer.id,
+          postId: offer.postId,
+          buyerId: offer.buyerId,
+          sellerId: matchedOrder?.sellerId || offer.post?.authorId || offer.sellerId || 0,
+          orderStatus: matchedOrder?.orderStatus || offer.offerStatus,
+          offerStatus: offer.offerStatus,
+          price: Number(offer.price),
+          shipFee: matchedOrder ? Number(matchedOrder.shipFee) : 0,
+          totalAmount: matchedOrder ? Number(matchedOrder.totalAmount) : Number(offer.price),
+          codeId: matchedOrder?.codeId || null,
+          createdAt: offer.createAt || offer.createdAt,
+          isOrder: !!matchedOrder,
+          post: offer.post
+        });
+      });
+
+      // Add received offers
+      receivedOffersData.forEach(offer => {
+        if (mergedList.some(item => item.offerId === offer.id)) return;
+
+        const matchedOrder = ordersData.find(o => Number(o.postId) === Number(offer.postId) && Number(o.buyerId) === Number(offer.buyerId));
+        mergedList.push({
+          id: matchedOrder?.id || `offer-${offer.id}`,
+          offerId: offer.id,
+          postId: offer.postId,
+          buyerId: offer.buyerId,
+          sellerId: currentUser.id,
+          orderStatus: matchedOrder?.orderStatus || offer.offerStatus,
+          offerStatus: offer.offerStatus,
+          price: Number(offer.price),
+          shipFee: matchedOrder ? Number(matchedOrder.shipFee) : 0,
+          totalAmount: matchedOrder ? Number(matchedOrder.totalAmount) : Number(offer.price),
+          codeId: matchedOrder?.codeId || null,
+          createdAt: offer.createAt || offer.createdAt,
+          isOrder: !!matchedOrder,
+          post: offer.post
+        });
+      });
+
+      // Also add any orders that don't have a matching offer (fallback)
+      ordersData.forEach(order => {
+        if (mergedList.some(item => item.id === order.id || (item.postId === order.postId && item.buyerId === order.buyerId))) return;
+        mergedList.push({
+          id: order.id,
+          offerId: null,
+          postId: order.postId,
+          buyerId: order.buyerId,
+          sellerId: order.sellerId,
+          orderStatus: order.orderStatus,
+          offerStatus: order.orderStatus,
+          price: Number(order.price) || 0,
+          shipFee: Number(order.shipFee) || 0,
+          totalAmount: Number(order.totalAmount) || 0,
+          codeId: order.codeId,
+          createdAt: order.createdAt,
+          isOrder: true,
+          post: null
+        });
+      });
+
+      setOrders(mergedList);
+
+      // Resolve detailed info for each merged item in parallel
+      const resolvedDetails = {};
+      await Promise.all(
+        mergedList.map(async (item) => {
+          try {
+            let post = item.post;
+            if (!post) {
+              post = await fetchPostById(item.postId);
+            }
+
+            let sellerName = `User #${item.sellerId}`;
+            if (item.sellerId) {
+              try {
+                const sellerProfile = await fetchUserProfile(item.sellerId);
+                if (sellerProfile && sellerProfile.name) {
+                  sellerName = sellerProfile.name;
+                }
+              } catch (_) { }
+            }
+
+            let buyerName = `User #${item.buyerId}`;
+            if (item.buyerId) {
+              try {
+                const buyerProfile = await fetchUserProfile(item.buyerId);
+                if (buyerProfile && buyerProfile.name) {
+                  buyerName = buyerProfile.name;
+                }
+              } catch (_) { }
+            }
+
+            let image = post?.image;
+            if (!image && post) {
+              image = post.categoryId === 1
+                ? 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop'
+                : post.categoryId === 2
+                  ? 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=600&auto=format&fit=crop'
+                  : 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=600&auto=format&fit=crop';
+            }
+
+            resolvedDetails[item.id] = {
+              title: post?.title || `Listing #${item.postId}`,
+              image: image || 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=600&auto=format&fit=crop',
+              sellerName,
+              buyerName,
+              offerPrice: item.price || post?.price || 0,
+              shipFee: item.shipFee,
+              totalAmount: item.totalAmount
+            };
+          } catch (err) {
+            console.error(`Failed to resolve details for item ${item.id}:`, err);
+            resolvedDetails[item.id] = {
+              title: `Listing #${item.postId}`,
+              image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=600&auto=format&fit=crop',
+              sellerName: `User #${item.sellerId}`,
+              buyerName: `User #${item.buyerId}`,
+              offerPrice: item.price || 0,
+              shipFee: item.shipFee || 0,
+              totalAmount: item.totalAmount || 0
+            };
+          }
+        })
+      );
+      setDetails(resolvedDetails);
+
+      // Restore order detail view on page refresh if pathname matches /order/:codeIdOrId
+      const path = window.location.pathname;
+      if (path.startsWith('/order/')) {
+        const orderCodeOrId = path.substring(7);
+        const targetOrder = mergedList.find(o =>
+          (o.codeId && String(o.codeId) === orderCodeOrId) || String(o.id) === orderCodeOrId
+        );
+        if (targetOrder) {
+          const tab = Number(targetOrder.buyerId) === Number(currentUser.id) ? 'sent' : 'received';
+          setActiveTab(tab);
+          handleOpenOrderDetail(targetOrder, resolvedDetails, tab);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load orders/offers:', err);
+      setError(err.message || 'An error occurred while loading your offers.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAcceptOffer = async (offerId) => {
+    if (!offerId) return;
+    try {
+      setUpdatingOrderId(`offer-${offerId}`);
+      await acceptOffer(offerId);
+      await loadOrdersData();
+    } catch (err) {
+      console.error('Failed to accept offer:', err);
+      setError(err.message || 'Failed to accept offer.');
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
+
   const handleOpenOrderDetail = async (order, resolvedDetailsMap = null, overrideActiveTab = null) => {
     setOrderDetailError(null);
     setOrderDetailLoading(true);
@@ -47,6 +258,29 @@ export default function UserOrder() {
     // Sync URL path with the current order detail view: use codeId if available, fallback to id
     const urlParam = order.codeId || order.id;
     window.history.pushState({ view: 'order-detail', orderId: order.id }, '', `/order/${urlParam}`);
+
+    // If it's a pending offer (not an order yet), display mock detail states
+    if (String(order.id).startsWith('offer-')) {
+      const cached = (resolvedDetailsMap || details)[order.id] || {};
+      setSelectedOrderDetails({
+        orderId: order.id,
+        orderCode: `Offer-${order.offerId}`,
+        sellerName: cached.sellerName || `User #${order.sellerId}`,
+        fromAddress: 'Will be determined upon acceptance',
+        buyerName: cached.buyerName || `User #${order.buyerId}`,
+        toAddress: 'Will be determined upon acceptance',
+        postTitle: cached.title || `Listing #${order.postId}`,
+        listingPrice: order.price,
+        shipFee: 0,
+        totalAmount: order.price,
+        image: cached.image || 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=600&auto=format&fit=crop',
+        status: 'PENDING',
+        activeTab: overrideActiveTab || activeTab,
+        trackings: []
+      });
+      setOrderDetailLoading(false);
+      return;
+    }
 
     try {
       // Fetch order and tracking details from the API
@@ -142,129 +376,9 @@ export default function UserOrder() {
   };
 
   useEffect(() => {
-    if (!currentUser) return;
-
-    const loadOrdersData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const ordersData = await fetchUserOrders();
-        setOrders(ordersData);
-
-        // Resolve detailed info for each order in parallel
-        const resolvedDetails = {};
-        await Promise.all(
-          ordersData.map(async (order) => {
-            try {
-              // 1. Fetch Order details by post ID
-              let shipFee = 0;
-              let totalAmount = 0;
-              let post = null;
-
-              try {
-                const ordersForPost = await fetchOrderDetailsByPostId(order.postId);
-                const matchedOrder = ordersForPost.find(o => Number(o.id) === Number(order.id));
-                if (matchedOrder) {
-                  shipFee = matchedOrder.shipFee ? Number(matchedOrder.shipFee) : 0;
-                  totalAmount = matchedOrder.totalAmount ? Number(matchedOrder.totalAmount) : 0;
-                  post = matchedOrder.post;
-                }
-              } catch (err) {
-                console.error(`Failed to fetch order details by post ID for order ${order.id}:`, err);
-              }
-
-              // Fallback to fetch post if not nested in order
-              if (!post) {
-                post = await fetchPostById(order.postId);
-              }
-
-              // 2. Fetch Seller Name
-              let sellerName = `User #${order.sellerId}`;
-              try {
-                const sellerProfile = await fetchUserProfile(order.sellerId);
-                if (sellerProfile && sellerProfile.name) {
-                  sellerName = sellerProfile.name;
-                }
-              } catch (_) { }
-
-              // 3. Fetch Buyer Name
-              let buyerName = `User #${order.buyerId}`;
-              try {
-                const buyerProfile = await fetchUserProfile(order.buyerId);
-                if (buyerProfile && buyerProfile.name) {
-                  buyerName = buyerProfile.name;
-                }
-              } catch (_) { }
-
-              // 4. Fetch the accepted offer price for this post
-              let offerPrice = post?.price || 0;
-              try {
-                const offers = await fetchOffersByPostId(order.postId);
-                const acceptedOffer = offers.find(
-                  (o) => Number(o.buyerId) === Number(order.buyerId) && o.offerStatus === 'ACCEPTED'
-                );
-                if (acceptedOffer && acceptedOffer.price) {
-                  offerPrice = Number(acceptedOffer.price);
-                }
-              } catch (_) { }
-
-              // Resolve category images dynamically if resolved post has categoryId
-              let image = post?.image;
-              if (!image && post) {
-                image = post.categoryId === 1
-                  ? 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=600&auto=format&fit=crop'
-                  : post.categoryId === 2
-                    ? 'https://images.unsplash.com/photo-1549298916-b41d501d3772?w=600&auto=format&fit=crop'
-                    : 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=600&auto=format&fit=crop';
-              }
-
-              resolvedDetails[order.id] = {
-                title: post?.title || `Listing #${order.postId}`,
-                image: image || 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=600&auto=format&fit=crop',
-                sellerName,
-                buyerName,
-                offerPrice,
-                shipFee,
-                totalAmount
-              };
-            } catch (err) {
-              console.error(`Failed to resolve details for order ${order.id}:`, err);
-              resolvedDetails[order.id] = {
-                title: `Listing #${order.postId}`,
-                image: 'https://images.unsplash.com/photo-1572635196237-14b3f281503f?w=600&auto=format&fit=crop',
-                sellerName: `User #${order.sellerId}`,
-                buyerName: `User #${order.buyerId}`,
-                offerPrice: 0,
-                shipFee: 0,
-                totalAmount: 0
-              };
-            }
-          })
-        );
-        setDetails(resolvedDetails);
-
-        // Restore order detail view on page refresh if pathname matches /order/:codeIdOrId
-        const path = window.location.pathname;
-        if (path.startsWith('/order/')) {
-          const orderCodeOrId = path.substring(7);
-          const targetOrder = ordersData.find(o =>
-            (o.codeId && String(o.codeId) === orderCodeOrId) || String(o.id) === orderCodeOrId
-          );
-          if (targetOrder) {
-            const tab = Number(targetOrder.buyerId) === Number(currentUser.id) ? 'sent' : 'received';
-            setActiveTab(tab);
-            handleOpenOrderDetail(targetOrder, resolvedDetails, tab);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load orders:', err);
-        setError(err.message || 'An error occurred while loading your offers.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadOrdersData();
+    if (currentUser) {
+      loadOrdersData();
+    }
   }, [currentUser]);
 
   const handleBackToCatalog = () => {
@@ -482,7 +596,26 @@ export default function UserOrder() {
 
                 <div className="border-t border-gray-200 pt-4 flex flex-col items-center justify-center gap-2">
                   <span className="text-xs uppercase font-bold text-gray-500 tracking-wider">Current Status:</span>
-                  {selectedOrderDetails.activeTab === 'sent' && selectedOrderDetails.status === 'PENDING' ? (
+                  {selectedOrderDetails.activeTab === 'received' && String(selectedOrderDetails.orderId).startsWith('offer-') ? (
+                    updatingOrderId === selectedOrderDetails.orderId ? (
+                      <div className="flex items-center gap-1.5 text-base font-bold text-gray-500">
+                        <Loader2 size={16} className="anim-spin text-amber-700" />
+                        <span>Accepting...</span>
+                      </div>
+                    ) : (
+                      <button
+                        className="btn btn-primary"
+                        onClick={async () => {
+                          const offerId = Number(String(selectedOrderDetails.orderId).replace('offer-', ''));
+                          await handleAcceptOffer(offerId);
+                          handleBackToOrders();
+                        }}
+                        style={{ padding: '0.5rem 1.5rem', fontSize: '0.9rem', color: '#ffffff' }}
+                      >
+                        Accept Offer
+                      </button>
+                    )
+                  ) : selectedOrderDetails.activeTab === 'sent' && selectedOrderDetails.status === 'PENDING' && !String(selectedOrderDetails.orderId).startsWith('offer-') ? (
                     updatingOrderId === selectedOrderDetails.orderId ? (
                       <div className="flex items-center gap-1.5 text-base font-bold text-gray-500">
                         <Loader2 size={16} className="anim-spin text-amber-700" />
@@ -675,7 +808,11 @@ export default function UserOrder() {
                     gap: '0.5rem'
                   }}>
                     {activeTab === 'sent' ? (
-                      updatingOrderId === order.id ? (
+                      String(order.id).startsWith('offer-') ? (
+                        <span className="badge badge-warning" style={{ textTransform: 'uppercase' }}>
+                          {order.orderStatus}
+                        </span>
+                      ) : updatingOrderId === order.id ? (
                         <div style={{
                           background: 'var(--clr-bg-card)',
                           padding: '0.2rem 0.5rem',
@@ -722,15 +859,52 @@ export default function UserOrder() {
                         </select>
                       )
                     ) : (
-                      <span
-                        className={`badge ${order.orderStatus === 'ACCEPTED' ? 'badge-success' :
-                          order.orderStatus === 'COMPLETED' ? 'badge-primary' :
-                            order.orderStatus === 'PENDING' ? 'badge-warning' : 'badge-danger'
-                          }`}
-                        style={{ textTransform: 'uppercase' }}
-                      >
-                        {order.orderStatus}
-                      </span>
+                      String(order.id).startsWith('offer-') ? (
+                        updatingOrderId === order.id ? (
+                          <div style={{
+                            background: 'var(--clr-bg-card)',
+                            padding: '0.2rem 0.5rem',
+                            borderRadius: 'var(--radius-sm)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.25rem',
+                            fontSize: '0.75rem',
+                            border: '1px solid var(--clr-border)',
+                            color: 'var(--clr-text-primary)'
+                          }}>
+                            <Loader2 size={12} className="anim-spin" />
+                            <span>Accepting...</span>
+                          </div>
+                        ) : (
+                          <button
+                            className="btn btn-primary"
+                            style={{
+                              padding: '0.25rem 0.5rem',
+                              fontSize: '0.75rem',
+                              borderRadius: 'var(--radius-sm)',
+                              color: '#ffffff',
+                              border: 'none',
+                              cursor: 'pointer'
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation(); // Avoid opening the detail modal
+                              handleAcceptOffer(order.offerId);
+                            }}
+                          >
+                            Accept
+                          </button>
+                        )
+                      ) : (
+                        <span
+                          className={`badge ${order.orderStatus === 'ACCEPTED' ? 'badge-success' :
+                            order.orderStatus === 'COMPLETED' ? 'badge-primary' :
+                              order.orderStatus === 'PENDING' ? 'badge-warning' : 'badge-danger'
+                            }`}
+                          style={{ textTransform: 'uppercase' }}
+                        >
+                          {order.orderStatus}
+                        </span>
+                      )
                     )}
                   </div>
                 </div>

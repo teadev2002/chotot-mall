@@ -249,8 +249,7 @@ export default function ProductDetail() {
           }
         }
 
-        // Fetch offers for the post
-        await loadOffersForPost(selectedProductId);
+        // Offers fetch moved to independent useEffect hook below for reliability
       } catch (err) {
         console.error('Failed to load post details:', err);
         // Resilient fallback
@@ -276,6 +275,13 @@ export default function ProductDetail() {
     setIsChatOpen(false);
     window.scrollTo(0, 0);
   }, [selectedProductId, products, currentUser]);
+
+  // Fetch offers for the post whenever selectedProductId or currentUser changes
+  useEffect(() => {
+    if (selectedProductId) {
+      loadOffersForPost(selectedProductId);
+    }
+  }, [selectedProductId, currentUser]);
 
   // Scroll to bottom when new chat messages arrive
   useEffect(() => {
