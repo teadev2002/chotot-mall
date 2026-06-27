@@ -260,7 +260,6 @@ export const ChatProvider = ({ children }) => {
           'accept': '*/*'
         },
         body: JSON.stringify({
-          postId: Number(postId),
           sellerId: Number(sellerId)
         })
       });
