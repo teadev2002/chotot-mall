@@ -3,7 +3,7 @@ import { ShopContext } from '../../context/ShopContext';
 import { ChatContext } from '../../context/ChatContext';
 import { ArrowLeft, Phone, MessageCircle, MapPin, Calendar, User, Send, ShieldAlert, Check, Loader2, Tag, X, Edit, AlertCircle } from 'lucide-react';
 import { fetchPostById, fetchOffersByPostId, createOffer, acceptOffer, fetchCategories, updatePost } from '../../services/productService';
-import { fetchUserProfile, fetchUserAddress, saveUserAddress } from '../../services/userService';
+import { fetchUserProfile, fetchUserAddress, saveUserAddress, updateUserPhone } from '../../services/userService';
 import { generateSlug } from '../../utils/slug';
 
 const DISTRICTS = [
@@ -17,6 +17,7 @@ export default function ProductDetail() {
     selectedProductId,
     setSelectedProductId,
     currentUser,
+    setCurrentUser,
     setIsAuthModalOpen,
     formatPrice,
     editProduct,
@@ -48,7 +49,9 @@ export default function ProductDetail() {
 
   // Address states
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [showPhoneInput, setShowPhoneInput] = useState(false);
   const [addressForm, setAddressForm] = useState({
+    phone: '',
     street: '',
     ward: 'phường',
     district: '',
@@ -361,14 +364,22 @@ export default function ProductDetail() {
     setOfferSuccessMsg(null);
 
     try {
+      // 1. Fetch user profile details to check phone number existence
+      const profile = await fetchUserProfile(currentUser.id);
+      const hasPhone = !!(profile && profile.phone && profile.phone.trim() !== '');
+
+      // 2. Fetch user address details
       const address = await fetchUserAddress(currentUser.id);
-      if (!address) {
+
+      if (!hasPhone || !address) {
         setAddressForm({
-          street: '',
-          ward: 'phường',
-          district: '',
+          phone: profile?.phone || '',
+          street: address?.street || '',
+          ward: address?.ward || 'phường',
+          district: address?.district || '',
           city: 'Hồ Chí Minh'
         });
+        setShowPhoneInput(!hasPhone);
         setAddressError(null);
         setAddressSubmitting(false);
         setIsAddressModalOpen(true);
@@ -376,8 +387,17 @@ export default function ProductDetail() {
         setIsOfferModalOpen(true);
       }
     } catch (err) {
-      console.error('Failed to verify user address:', err);
-      setIsOfferModalOpen(true);
+      console.error('Failed to verify user profile or address:', err);
+      // Fallback
+      setShowPhoneInput(true);
+      setAddressForm({
+        phone: '',
+        street: '',
+        ward: 'phường',
+        district: '',
+        city: 'Hồ Chí Minh'
+      });
+      setIsAddressModalOpen(true);
     }
   };
 
@@ -392,12 +412,29 @@ export default function ProductDetail() {
     setAddressSubmitting(true);
     setAddressError(null);
 
-    let wardValue = addressForm.ward.trim();
-    if (!wardValue.toLowerCase().startsWith('phường')) {
-      wardValue = `phường ${wardValue}`.trim();
-    }
-
     try {
+      // 1. If phone input is shown, call updateUserPhone API first
+      if (showPhoneInput) {
+        const phoneVal = addressForm.phone.trim();
+        if (!phoneVal) {
+          throw new Error('Please enter a phone number');
+        }
+        await updateUserPhone(phoneVal);
+        // Sync context user state
+        if (setCurrentUser) {
+          setCurrentUser((prev) => ({
+            ...prev,
+            phone: phoneVal
+          }));
+        }
+      }
+
+      // 2. Save user address details
+      let wardValue = addressForm.ward.trim();
+      if (!wardValue.toLowerCase().startsWith('phường')) {
+        wardValue = `phường ${wardValue}`.trim();
+      }
+
       await saveUserAddress({
         userId: Number(currentUser.id),
         street: addressForm.street.trim(),
@@ -407,6 +444,7 @@ export default function ProductDetail() {
       });
 
       setAddressForm({
+        phone: '',
         street: '',
         ward: 'phường',
         district: '',
@@ -415,8 +453,8 @@ export default function ProductDetail() {
       setIsAddressModalOpen(false);
       setIsOfferModalOpen(true);
     } catch (err) {
-      console.error('Save address error:', err);
-      setAddressError(err.message || 'An error occurred while saving the address.');
+      console.error('Save profile/address error:', err);
+      setAddressError(err.message || 'An error occurred while saving.');
     } finally {
       setAddressSubmitting(false);
     }
@@ -1347,6 +1385,24 @@ export default function ProductDetail() {
                   </div>
                 )}
 
+                {/* Phone number */}
+                {showPhoneInput && (
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="phone">Phone Number</label>
+                    <input
+                      type="text"
+                      id="phone"
+                      className="form-input"
+                      placeholder="e.g. 0900000123"
+                      value={addressForm.phone}
+                      onChange={handleAddressInputChange}
+                      required
+                      disabled={addressSubmitting}
+                      autoFocus
+                    />
+                  </div>
+                )}
+
                 {/* Street */}
                 <div className="form-group">
                   <label className="form-label" htmlFor="street">Street Address</label>
@@ -1359,7 +1415,7 @@ export default function ProductDetail() {
                     onChange={handleAddressInputChange}
                     required
                     disabled={addressSubmitting}
-                    autoFocus
+                    autoFocus={!showPhoneInput}
                   />
                 </div>
 

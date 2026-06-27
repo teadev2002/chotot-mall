@@ -458,6 +458,7 @@ export const ShopProvider = ({ children }) => {
         deleteProduct,
         users,
         currentUser,
+        setCurrentUser,
         isAuthModalOpen,
         setIsAuthModalOpen,
         signIn,

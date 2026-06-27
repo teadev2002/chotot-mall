@@ -178,3 +178,18 @@ export const fetchOrderAndTracking = async (orderId) => {
   return null;
 };
 
+export const updateUserPhone = async (phone) => {
+  const response = await apiFetch(`https://cho-tot-production.up.railway.app/user/update-phone?phone=${encodeURIComponent(phone)}`, {
+    method: 'PUT'
+  });
+  if (!response.ok) {
+    let errorMsg = 'Failed to update phone number';
+    try {
+      const errJSON = await response.json();
+      if (errJSON && errJSON.message) errorMsg = errJSON.message;
+    } catch (_) {}
+    throw new Error(errorMsg);
+  }
+  return await response.json();
+};
+
