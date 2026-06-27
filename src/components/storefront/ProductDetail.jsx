@@ -23,17 +23,7 @@ export default function ProductDetail() {
     loadUserListings
   } = useContext(ShopContext);
 
-  const {
-    isChatOpen,
-    setIsChatOpen,
-    activeConversationId,
-    messages: chatMessages,
-    chatLoading,
-    chatError,
-    startChat,
-    closeChat,
-    sendMessage
-  } = useContext(ChatContext);
+  const { startChat } = useContext(ChatContext);
 
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -129,9 +119,7 @@ export default function ProductDetail() {
   // Classifieds interactions states
   const [phoneRevealed, setPhoneRevealed] = useState(false);
   const [phoneCopied, setPhoneCopied] = useState(false);
-  const [chatInput, setChatInput] = useState('');
 
-  const messagesEndRef = useRef(null);
 
   // Helper to load offers for a post
   const loadOffersForPost = async (postId) => {
@@ -203,9 +191,6 @@ export default function ProductDetail() {
         if (data) {
           setProduct(data);
           authorId = data.authorId;
-          setChatMessages([
-            { sender: 'seller', text: `Hi! Thanks for showing interest in my listing "${data.title}". Is there anything specific you would like to know?`, time: 'Just now' }
-          ]);
           // Sync URL with post slug name
           const slug = generateSlug(data.title);
           window.history.pushState({ postId: data.id, view: 'product-detail' }, '', `/post/${slug}`);
@@ -215,9 +200,6 @@ export default function ProductDetail() {
           if (local) {
             setProduct(local);
             authorId = local.authorId;
-            setChatMessages([
-              { sender: 'seller', text: `Hi! Thanks for showing interest in my listing "${local.title}". Is there anything specific you would like to know?`, time: 'Just now' }
-            ]);
             // Sync URL with local post slug name
             const slug = generateSlug(local.title);
             window.history.pushState({ postId: local.id, view: 'product-detail' }, '', `/post/${slug}`);
@@ -256,9 +238,6 @@ export default function ProductDetail() {
         const local = products.find((p) => p.id === selectedProductId);
         if (local) {
           setProduct(local);
-          setChatMessages([
-            { sender: 'seller', text: `Hi! Thanks for showing interest in my listing "${local.title}". Is there anything specific you would like to know?`, time: 'Just now' }
-          ]);
           const slug = generateSlug(local.title);
           window.history.pushState({ postId: local.id, view: 'product-detail' }, '', `/post/${slug}`);
         } else {
@@ -272,7 +251,6 @@ export default function ProductDetail() {
     getProductDetail();
     setPhoneRevealed(false);
     setPhoneCopied(false);
-    setIsChatOpen(false);
     window.scrollTo(0, 0);
   }, [selectedProductId, products, currentUser]);
 
@@ -283,12 +261,7 @@ export default function ProductDetail() {
     }
   }, [selectedProductId, currentUser]);
 
-  // Scroll to bottom when new chat messages arrive
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [chatMessages]);
+
 
   // Loading indicator overlay
   if (loading) {
@@ -1020,183 +993,7 @@ export default function ProductDetail() {
         )}
       </div>
 
-      {/* Floating Chat Widget */}
-      {isChatOpen && (
-        <div
-          className="anim-scale-in"
-          style={{
-            position: 'fixed',
-            bottom: '20px',
-            right: '20px',
-            width: '360px',
-            height: '460px',
-            background: 'var(--clr-bg-card)',
-            border: '1px solid var(--clr-border)',
-            borderRadius: 'var(--radius-md)',
-            boxShadow: 'var(--shadow-2xl)',
-            display: 'flex',
-            flexDirection: 'column',
-            zIndex: 9999,
-            overflow: 'hidden'
-          }}
-        >
-          {/* Chat Header */}
-          <div
-            style={{
-              padding: '1rem',
-              background: 'linear-gradient(135deg, var(--clr-primary), var(--clr-secondary))',
-              color: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <div
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  background: 'rgba(255,255,255,0.2)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontWeight: 'bold',
-                  fontSize: '0.8rem'
-                }}
-              >
-                {sellerName ? sellerName.charAt(0).toUpperCase() : 'S'}
-              </div>
-              <div>
-                <div style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>Seller: {sellerName || `User #${product.authorId}`}</div>
-                <div style={{ fontSize: '0.7rem', opacity: 0.8 }}>Active on platform</div>
-              </div>
-            </div>
-            <button
-              onClick={closeChat}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'white',
-                fontSize: '1.25rem',
-                cursor: 'pointer',
-                opacity: 0.8
-              }}
-            >
-              &times;
-            </button>
-          </div>
 
-          {/* Chat Messages */}
-          <div
-            style={{
-              flex: 1,
-              padding: '1rem',
-              overflowY: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '0.75rem',
-              background: 'var(--clr-bg-app)'
-            }}
-          >
-            {chatLoading ? (
-              <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100%', gap: '0.5rem', color: 'var(--clr-text-secondary)' }}>
-                <Loader2 size={24} className="anim-spin" style={{ color: 'var(--clr-primary)' }} />
-                <span style={{ fontSize: '0.85rem' }}>Loading conversation...</span>
-              </div>
-            ) : chatError ? (
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '1rem', color: 'var(--clr-danger)', fontSize: '0.85rem', textAlign: 'center' }}>
-                {chatError}
-              </div>
-            ) : chatMessages.length === 0 ? (
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '1rem', color: 'var(--clr-text-muted)', fontSize: '0.85rem', textAlign: 'center', fontStyle: 'italic' }}>
-                No messages yet. Say hello to start the conversation!
-              </div>
-            ) : (
-              chatMessages.map((msg, idx) => {
-                const isMine = msg.senderId === currentUser?.id;
-                const timeStr = msg.createdAt
-                  ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                  : 'Just now';
-                return (
-                  <div
-                    key={msg.id || idx}
-                    style={{
-                      alignSelf: isMine ? 'flex-end' : 'flex-start',
-                      maxWidth: '80%',
-                      background: isMine ? 'var(--clr-primary)' : 'var(--clr-bg-card)',
-                      color: isMine ? 'white' : 'var(--clr-text-primary)',
-                      padding: '0.65rem 0.85rem',
-                      borderRadius: isMine ? '12px 12px 0 12px' : '0 12px 12px 12px',
-                      border: isMine ? 'none' : '1px solid var(--clr-border)',
-                      fontSize: '0.85rem',
-                      boxShadow: 'var(--shadow-sm)'
-                    }}
-                  >
-                    <div>{msg.content}</div>
-                    <div
-                      style={{
-                        fontSize: '0.65rem',
-                        opacity: 0.6,
-                        textAlign: 'right',
-                        marginTop: '0.25rem'
-                      }}
-                    >
-                      {timeStr}
-                    </div>
-                  </div>
-                );
-              })
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Chat Form */}
-          <form
-            onSubmit={handleSendMessage}
-            style={{
-              padding: '0.75rem',
-              background: 'var(--clr-bg-card)',
-              borderTop: '1px solid var(--clr-border)',
-              display: 'flex',
-              gap: '0.5rem'
-            }}
-          >
-            <input
-              type="text"
-              className="form-input"
-              style={{
-                fontSize: '0.85rem',
-                borderRadius: 'var(--radius-full)',
-                height: '36px',
-                padding: '0 1rem'
-              }}
-              placeholder="Ask the seller about the item..."
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              disabled={chatLoading}
-            />
-            <button
-              type="submit"
-              className="btn btn-primary"
-              style={{
-                width: '36px',
-                height: '36px',
-                padding: 0,
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0
-              }}
-              disabled={chatLoading}
-            >
-              <Send size={14} />
-            </button>
-          </form>
-        </div>
-      )}
 
       {/* Make Offer Modal */}
       {isOfferModalOpen && (

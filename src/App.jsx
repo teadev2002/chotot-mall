@@ -8,7 +8,7 @@ import ProductGrid from './components/storefront/ProductGrid';
 import ProductDetail from './components/storefront/ProductDetail';
 import UserListings from './components/storefront/UserListings';
 import UserOrder from './components/storefront/UserOrder';
-import UserInbox from './components/storefront/UserInbox';
+import GlobalChatWidget from './components/chat/GlobalChatWidget';
 import AuthModal from './components/storefront/AuthModal';
 
 // Admin Components
@@ -61,9 +61,6 @@ function App() {
     if (view === 'my-offers') {
       return <UserOrder />;
     }
-    if (view === 'inbox') {
-      return <UserInbox />;
-    }
     return <ProductGrid />;
   };
 
@@ -88,7 +85,7 @@ function App() {
 
       {/* Main View Router */}
       <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-        {(view === 'storefront' || view === 'user-listings' || view === 'my-offers' || view === 'inbox') && renderStorefrontContent()}
+        {(view === 'storefront' || view === 'user-listings' || view === 'my-offers') && renderStorefrontContent()}
 
         {view === 'admin' && (
           <div className="admin-shell">
@@ -135,6 +132,9 @@ function App() {
 
       {/* Customer Footer (Hidden in Admin Panel views for a clean workspace) */}
       {view !== 'admin' && <Footer />}
+
+      {/* Global Floating Chat Widget */}
+      <GlobalChatWidget />
     </div>
   );
 }

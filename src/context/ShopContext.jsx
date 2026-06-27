@@ -35,9 +35,6 @@ export const ShopProvider = ({ children }) => {
     if (path === '/my-offers' || path.startsWith('/order/')) {
       return 'my-offers';
     }
-    if (path === '/inbox') {
-      return 'inbox';
-    }
     if (path.startsWith('/user/')) {
       return 'user-listings';
     }
@@ -285,9 +282,32 @@ export const ShopProvider = ({ children }) => {
         const path = window.location.pathname;
         if (path.startsWith('/post/')) {
           const urlSlug = decodeURIComponent(path.substring(6)).trim();
-          const match = detailedMapped.find((p) => generateSlug(p.title) === urlSlug);
+          let match = detailedMapped.find((p) => generateSlug(p.title) === urlSlug);
           if (match) {
             setSelectedProductId(match.id);
+          } else {
+            // Not found on page 1 (first 10 items), fetch up to 50 to locate the matching slug
+            try {
+              const res = await fetch('https://cho-tot-production.up.railway.app/post/all?page=1&limit=50');
+              const json = await res.json();
+              if (json.success && Array.isArray(json.data)) {
+                const found = json.data.find((p) => generateSlug(p.title) === urlSlug);
+                if (found) {
+                  const detailedPost = await fetchPostById(found.id);
+                  if (detailedPost) {
+                    setProducts((prev) => {
+                      if (!prev.some(p => p.id === detailedPost.id)) {
+                        return [detailedPost, ...prev];
+                      }
+                      return prev;
+                    });
+                    setSelectedProductId(detailedPost.id);
+                  }
+                }
+              }
+            } catch (err) {
+              console.error('Failed to resolve slug on page reload:', err);
+            }
           }
         }
       } catch (err) {
