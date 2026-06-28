@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { ShopContext } from '../../context/ShopContext';
 import { fetchUserOrders, fetchUserProfile, updateUserOrder, fetchOrderDetailsByPostId, fetchUserAddress, fetchOrderAndTracking } from '../../services/userService';
-import { fetchPostById, fetchOffersByPostId, acceptOffer } from '../../services/productService';
+import { fetchPostById, fetchOffersByPostId, acceptOffer, deleteOffer } from '../../services/productService';
 import { ArrowLeft, Loader2, Calendar, ShoppingBag, User, Tag } from 'lucide-react';
-import { Steps } from 'antd';
-import { EyeOutlined } from '@ant-design/icons';
+import { Steps, Popconfirm, Button } from 'antd';
+import { EyeOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { apiFetch } from '../../services/api';
 
 export default function UserOrder() {
@@ -615,6 +615,36 @@ export default function UserOrder() {
                         Accept Offer
                       </button>
                     )
+                  ) : selectedOrderDetails.activeTab === 'sent' && String(selectedOrderDetails.orderId).startsWith('offer-') ? (
+                    <Popconfirm
+                      title="Delete Offer"
+                      description="Are you sure to delete this offer?"
+                      okText="Yes"
+                      cancelText="No"
+                      onConfirm={async () => {
+                        const offerId = Number(String(selectedOrderDetails.orderId).replace('offer-', ''));
+                        try {
+                          setUpdatingOrderId(selectedOrderDetails.orderId);
+                          await deleteOffer(offerId);
+                          handleBackToOrders();
+                          await loadOrdersAndOffers();
+                        } catch (err) {
+                          alert(err.message || 'Failed to delete offer');
+                        } finally {
+                          setUpdatingOrderId(null);
+                        }
+                      }}
+                      disabled={updatingOrderId === selectedOrderDetails.orderId}
+                      icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
+                    >
+                      <Button
+                        danger
+                        loading={updatingOrderId === selectedOrderDetails.orderId}
+                        style={{ padding: '0.55rem 1.5rem', fontSize: '0.9rem', height: 'auto' }}
+                      >
+                        Delete Offer
+                      </Button>
+                    </Popconfirm>
                   ) : selectedOrderDetails.activeTab === 'sent' && selectedOrderDetails.status === 'PENDING' && !String(selectedOrderDetails.orderId).startsWith('offer-') ? (
                     updatingOrderId === selectedOrderDetails.orderId ? (
                       <div className="flex items-center gap-1.5 text-base font-bold text-gray-500">
@@ -809,9 +839,39 @@ export default function UserOrder() {
                   }}>
                     {activeTab === 'sent' ? (
                       String(order.id).startsWith('offer-') ? (
-                        <span className="badge badge-warning" style={{ textTransform: 'uppercase' }}>
-                          {order.orderStatus}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }} onClick={(e) => e.stopPropagation()}>
+                          <span className="badge badge-warning" style={{ textTransform: 'uppercase' }}>
+                            {order.orderStatus}
+                          </span>
+                          <Popconfirm
+                            title="Delete Offer"
+                            description="Are you sure to delete this offer?"
+                            okText="Yes"
+                            cancelText="No"
+                            onConfirm={async () => {
+                              try {
+                                setUpdatingOrderId(order.id);
+                                await deleteOffer(order.offerId);
+                                await loadOrdersAndOffers();
+                              } catch (err) {
+                                alert(err.message || 'Failed to delete offer');
+                              } finally {
+                                setUpdatingOrderId(null);
+                              }
+                            }}
+                            disabled={updatingOrderId === order.id}
+                            icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
+                          >
+                            <Button
+                              danger
+                              size="small"
+                              loading={updatingOrderId === order.id}
+                              style={{ fontSize: '0.7rem', height: 'auto', padding: '2px 6px' }}
+                            >
+                              Delete Offer
+                            </Button>
+                          </Popconfirm>
+                        </div>
                       ) : updatingOrderId === order.id ? (
                         <div style={{
                           background: 'var(--clr-bg-card)',

@@ -162,4 +162,19 @@ export const updatePost = async (postId, postData) => {
   return await response.json();
 };
 
+export const deleteOffer = async (offerId) => {
+  const response = await apiFetch(`https://cho-tot-production.up.railway.app/offer/${offerId}`, {
+    method: 'DELETE'
+  });
+  if (!response.ok) {
+    let errorMsg = 'Failed to delete offer';
+    try {
+      const errJSON = await response.json();
+      if (errJSON && errJSON.message) errorMsg = errJSON.message;
+    } catch (_) {}
+    throw new Error(errorMsg);
+  }
+  return await response.json();
+};
+
 

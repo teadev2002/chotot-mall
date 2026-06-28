@@ -3,7 +3,7 @@ import { ShopContext } from '../../context/ShopContext';
 import { ArrowLeft, Eye, MapPin, Calendar, Mail, Phone, Plus, X, Upload, Loader2, AlertCircle } from 'lucide-react';
 import { apiFetch } from '../../services/api';
 import { fetchCategories } from '../../services/productService';
-import { saveUserAddress } from '../../services/userService';
+import { saveUserAddress, fetchUserProfile, fetchUserAddress, updateUserPhone } from '../../services/userService';
 
 const DISTRICTS = [
   'Quận 1', 'Quận 2', 'Quận 3', 'Quận 4', 'Quận 5', 'Quận 6', 'Quận 7', 'Quận 8', 'Quận 9', 'Quận 10', 'Quận 11', 'Quận 12',
@@ -19,6 +19,7 @@ export default function UserListings() {
     setView,
     formatPrice,
     currentUser,
+    setCurrentUser,
     loadUserListings
   } = useContext(ShopContext);
 
@@ -60,9 +61,12 @@ export default function UserListings() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
 
-  // Address states
+  // Address & Phone verification states
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [showPhoneInput, setShowPhoneInput] = useState(false);
+  const [afterAddressSubmitAction, setAfterAddressSubmitAction] = useState(null);
   const [addressForm, setAddressForm] = useState({
+    phone: '',
     street: '',
     ward: 'phường',
     district: '',
@@ -151,6 +155,48 @@ export default function UserListings() {
     }
   };
 
+  const handleOpenCreateModal = async () => {
+    if (!currentUser) return;
+    try {
+      // 1. Fetch user profile to check phone
+      const profile = await fetchUserProfile(currentUser.id);
+      const hasPhone = !!(profile && profile.phone && profile.phone.trim() !== '');
+
+      // 2. Fetch user address
+      const address = await fetchUserAddress(currentUser.id);
+
+      if (!hasPhone || !address) {
+        setAddressForm({
+          phone: profile?.phone || '',
+          street: address?.street || '',
+          ward: address?.ward || 'phường',
+          district: address?.district || '',
+          city: 'Hồ Chí Minh'
+        });
+        setShowPhoneInput(!hasPhone);
+        setAfterAddressSubmitAction('open-create');
+        setAddressError(null);
+        setAddressSubmitting(false);
+        setIsAddressModalOpen(true);
+      } else {
+        setAfterAddressSubmitAction(null);
+        setIsCreateModalOpen(true);
+      }
+    } catch (err) {
+      console.error('Failed to verify profile/address on create listing:', err);
+      setShowPhoneInput(true);
+      setAfterAddressSubmitAction('open-create');
+      setAddressForm({
+        phone: '',
+        street: '',
+        ward: 'phường',
+        district: '',
+        city: 'Hồ Chí Minh'
+      });
+      setIsAddressModalOpen(true);
+    }
+  };
+
   const handleAddressInputChange = (e) => {
     const { id, value } = e.target;
     setAddressForm((prev) => ({ ...prev, [id]: value }));
@@ -162,13 +208,29 @@ export default function UserListings() {
     setAddressSubmitting(true);
     setAddressError(null);
 
-    // Ensure ward starts with "phường"
-    let wardValue = addressForm.ward.trim();
-    if (!wardValue.toLowerCase().startsWith('phường')) {
-      wardValue = `phường ${wardValue}`.trim();
-    }
-
     try {
+      // 1. If phone input is shown, call updateUserPhone API first
+      if (showPhoneInput) {
+        const phoneVal = addressForm.phone.trim();
+        if (!phoneVal) {
+          throw new Error('Please enter a phone number');
+        }
+        await updateUserPhone(phoneVal);
+        // Sync context user state
+        if (setCurrentUser) {
+          setCurrentUser((prev) => ({
+            ...prev,
+            phone: phoneVal
+          }));
+        }
+      }
+
+      // 2. Save user address details
+      let wardValue = addressForm.ward.trim();
+      if (!wardValue.toLowerCase().startsWith('phường')) {
+        wardValue = `phường ${wardValue}`.trim();
+      }
+
       await saveUserAddress({
         userId: Number(currentUser.id),
         street: addressForm.street.trim(),
@@ -178,6 +240,7 @@ export default function UserListings() {
       });
 
       setAddressForm({
+        phone: '',
         street: '',
         ward: 'phường',
         district: '',
@@ -187,9 +250,14 @@ export default function UserListings() {
 
       // Reload listings page profile data to pull updated addresses list from server
       await loadUserListings(currentUser.id);
+
+      if (afterAddressSubmitAction === 'open-create') {
+        setIsCreateModalOpen(true);
+      }
+      setAfterAddressSubmitAction(null);
     } catch (err) {
-      console.error('Save address error:', err);
-      setAddressError(err.message || 'An error occurred while saving the address.');
+      console.error('Save profile/address error:', err);
+      setAddressError(err.message || 'An error occurred while saving.');
     } finally {
       setAddressSubmitting(false);
     }
@@ -359,7 +427,7 @@ export default function UserListings() {
         {isOwnProfile && (
           <button
             className="btn btn-primary"
-            onClick={() => setIsCreateModalOpen(true)}
+            onClick={handleOpenCreateModal}
             style={{ padding: '0.55rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
           >
             <Plus size={16} />
@@ -452,7 +520,7 @@ export default function UserListings() {
             You haven't posted any used items for sale yet.
           </p>
           {isOwnProfile && (
-            <button className="btn btn-primary" onClick={() => setIsCreateModalOpen(true)}>
+            <button className="btn btn-primary" onClick={handleOpenCreateModal}>
               Create New Listing
             </button>
           )}
@@ -746,6 +814,24 @@ export default function UserListings() {
                   </div>
                 )}
 
+                {/* Phone number */}
+                {showPhoneInput && (
+                  <div className="form-group">
+                    <label className="form-label" htmlFor="phone">Phone Number</label>
+                    <input
+                      type="text"
+                      id="phone"
+                      className="form-input"
+                      placeholder="e.g. 0900000123"
+                      value={addressForm.phone}
+                      onChange={handleAddressInputChange}
+                      required
+                      disabled={addressSubmitting}
+                      autoFocus
+                    />
+                  </div>
+                )}
+
                 {/* Street */}
                 <div className="form-group">
                   <label className="form-label" htmlFor="street">Street Address</label>
@@ -758,7 +844,7 @@ export default function UserListings() {
                     onChange={handleAddressInputChange}
                     required
                     disabled={addressSubmitting}
-                    autoFocus
+                    autoFocus={!showPhoneInput}
                   />
                 </div>
 

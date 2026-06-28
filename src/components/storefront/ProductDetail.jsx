@@ -2,9 +2,11 @@ import React, { useState, useContext, useEffect, useRef } from 'react';
 import { ShopContext } from '../../context/ShopContext';
 import { ChatContext } from '../../context/ChatContext';
 import { ArrowLeft, Phone, MessageCircle, MapPin, Calendar, User, Send, ShieldAlert, Check, Loader2, Tag, X, Edit, AlertCircle } from 'lucide-react';
-import { fetchPostById, fetchOffersByPostId, createOffer, acceptOffer, fetchCategories, updatePost } from '../../services/productService';
+import { fetchPostById, fetchOffersByPostId, createOffer, acceptOffer, fetchCategories, updatePost, deleteOffer } from '../../services/productService';
 import { fetchUserProfile, fetchUserAddress, saveUserAddress, updateUserPhone } from '../../services/userService';
 import { generateSlug } from '../../utils/slug';
+import { Popconfirm, Button } from 'antd';
+import { QuestionCircleOutlined } from '@ant-design/icons';
 
 const DISTRICTS = [
   'Quận 1', 'Quận 2', 'Quận 3', 'Quận 4', 'Quận 5', 'Quận 6', 'Quận 7', 'Quận 8', 'Quận 9', 'Quận 10', 'Quận 11', 'Quận 12',
@@ -950,7 +952,7 @@ export default function ProductDetail() {
                   <th style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.85rem' }}>Offered Price</th>
                   <th style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.85rem' }}>Offer Status</th>
                   <th style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.85rem' }}>Submitted At</th>
-                  {isOwnProduct && <th style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.85rem' }}>Actions</th>}
+                  {(isOwnProduct || (currentUser && offersList.some(o => Number(o.buyerId) === Number(currentUser.id)))) && <th style={{ padding: '0.75rem 1rem', fontWeight: 700, fontSize: '0.85rem' }}>Actions</th>}
                 </tr>
               </thead>
               <tbody>
@@ -984,9 +986,9 @@ export default function ProductDetail() {
                           )}
                         </td>
                         <td style={{ padding: '0.75rem 1rem', fontSize: '0.85rem' }}>{offerDate}</td>
-                        {isOwnProduct && (
+                        {(isOwnProduct || (currentUser && offersList.some(o => Number(o.buyerId) === Number(currentUser.id)))) && (
                           <td style={{ padding: '0.5rem 1rem' }}>
-                            {offer.offerStatus === 'PENDING' && !hasAcceptedOffer ? (
+                            {isOwnProduct && offer.offerStatus === 'PENDING' && !hasAcceptedOffer ? (
                               <button
                                 className="btn btn-primary"
                                 style={{
@@ -1010,6 +1012,35 @@ export default function ProductDetail() {
                                   'Accept'
                                 )}
                               </button>
+                            ) : currentUser && Number(offer.buyerId) === Number(currentUser.id) && offer.offerStatus === 'PENDING' ? (
+                              <Popconfirm
+                                title="Delete Offer"
+                                description="Are you sure to delete this offer?"
+                                okText="Yes"
+                                cancelText="No"
+                                onConfirm={async () => {
+                                  try {
+                                    setAcceptingOfferId(offer.id);
+                                    await deleteOffer(offer.id);
+                                    await loadOffersForPost(product.id);
+                                  } catch (err) {
+                                    alert(err.message || 'Failed to delete offer');
+                                  } finally {
+                                    setAcceptingOfferId(null);
+                                  }
+                                }}
+                                disabled={acceptingOfferId === offer.id}
+                                icon={<QuestionCircleOutlined style={{ color: 'red' }} />}
+                              >
+                                <Button
+                                  danger
+                                  size="small"
+                                  loading={acceptingOfferId === offer.id}
+                                  style={{ fontSize: '0.75rem', height: 'auto', padding: '4px 8px' }}
+                                >
+                                  Delete Offer
+                                </Button>
+                              </Popconfirm>
                             ) : (
                               <span style={{ fontSize: '0.8rem', color: 'var(--clr-text-muted)', fontStyle: 'italic' }}>
                                 No Actions

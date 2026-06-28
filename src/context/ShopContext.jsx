@@ -4,7 +4,7 @@ import { setCookie, getCookie, deleteCookie } from '../utils/cookie';
 import { formatPrice } from '../utils/price';
 import { signIn as authSignIn, signUpService } from '../services/authService';
 import { fetchAllPosts, fetchPostById } from '../services/productService';
-import { fetchUserProfile, fetchUserPosts } from '../services/userService';
+import { fetchUserProfile, fetchUserPosts, fetchUserAddress } from '../services/userService';
 import { generateSlug } from '../utils/slug';
 
 // Create Shop Context
@@ -331,6 +331,15 @@ export const ShopProvider = ({ children }) => {
       const profile = await fetchUserProfile(userId);
       let userName = `User ${userId}`;
       if (profile) {
+        // Fetch user address to display under User Addresses list
+        let address = null;
+        try {
+          address = await fetchUserAddress(userId);
+        } catch (addrErr) {
+          console.error(`Failed to fetch address for user ${userId}:`, addrErr);
+        }
+        profile.addresses = address ? [address] : [];
+
         setUserProfile(profile);
         userName = profile.name || userName;
       }
