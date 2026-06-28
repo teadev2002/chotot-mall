@@ -4,6 +4,7 @@ import { ArrowLeft, Eye, MapPin, Calendar, Mail, Phone, Plus, X, Upload, Loader2
 import { apiFetch } from '../../services/api';
 import { fetchCategories } from '../../services/productService';
 import { saveUserAddress, fetchUserProfile, fetchUserAddress, updateUserPhone } from '../../services/userService';
+import { Skeleton } from 'antd';
 
 const DISTRICTS = [
   'Quận 1', 'Quận 2', 'Quận 3', 'Quận 4', 'Quận 5', 'Quận 6', 'Quận 7', 'Quận 8', 'Quận 9', 'Quận 10', 'Quận 11', 'Quận 12',
@@ -265,16 +266,8 @@ export default function UserListings() {
 
   if (userListingsLoading) {
     return (
-      <div className="container" style={{ padding: '8rem 2rem', textAlign: 'center' }}>
-        <div className="anim-spin" style={{
-          width: '40px',
-          height: '40px',
-          border: '4px solid var(--clr-primary-light)',
-          borderTopColor: 'var(--clr-primary)',
-          borderRadius: '50%',
-          margin: '0 auto 1.5rem'
-        }}></div>
-        <p style={{ color: 'var(--clr-text-secondary)' }}>Retrieving user listings...</p>
+      <div className="container" style={{ padding: '4rem 2rem' }}>
+        <Skeleton active />
       </div>
     );
   }

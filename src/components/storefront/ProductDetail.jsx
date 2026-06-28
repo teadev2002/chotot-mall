@@ -5,7 +5,7 @@ import { ArrowLeft, Phone, MessageCircle, MapPin, Calendar, User, Send, ShieldAl
 import { fetchPostById, fetchOffersByPostId, createOffer, acceptOffer, fetchCategories, updatePost, deleteOffer } from '../../services/productService';
 import { fetchUserProfile, fetchUserAddress, saveUserAddress, updateUserPhone } from '../../services/userService';
 import { generateSlug } from '../../utils/slug';
-import { Popconfirm, Button } from 'antd';
+import { Popconfirm, Button, Skeleton, message } from 'antd';
 import { QuestionCircleOutlined } from '@ant-design/icons';
 
 const DISTRICTS = [
@@ -14,6 +14,7 @@ const DISTRICTS = [
 ];
 
 export default function ProductDetail() {
+  const [messageApi, contextHolder] = message.useMessage();
   const {
     products,
     selectedProductId,
@@ -271,7 +272,7 @@ export default function ProductDetail() {
   // Loading indicator overlay
   if (loading) {
     return (
-      <div className="container" style={{ padding: '6rem 2rem', textAlign: 'center' }}>
+      <div className="container" style={{ padding: '6rem 2rem' }}>
         <button
           className="btn btn-secondary"
           onClick={() => setSelectedProductId(null)}
@@ -280,9 +281,8 @@ export default function ProductDetail() {
           <ArrowLeft size={16} />
           Back to Listings
         </button>
-        <div style={{ marginTop: '2rem' }}>
-          <Loader2 size={36} className="anim-spin" style={{ color: 'var(--clr-primary)', margin: '0 auto 1.5rem' }} />
-          <p style={{ color: 'var(--clr-text-secondary)' }}>Loading listing details from server...</p>
+        <div style={{ marginTop: '1rem' }}>
+          <Skeleton active />
         </div>
       </div>
     );
@@ -347,7 +347,7 @@ export default function ProductDetail() {
     try {
       await startChat(product.id, product.authorId);
     } catch (err) {
-      alert(err.message || 'Could not start chat with seller');
+      messageApi.error(err.message || 'Could not start chat with seller');
     }
   };
 
@@ -357,7 +357,7 @@ export default function ProductDetail() {
       return;
     }
     if (hasAcceptedOffer) {
-      alert('An offer has already been accepted for this listing. Making new offers is locked.');
+      messageApi.warning('An offer has already been accepted for this listing. Making new offers is locked.');
       return;
     }
     setOfferPrice('');
@@ -478,8 +478,7 @@ export default function ProductDetail() {
 
     try {
       const newOfferRes = await createOffer(product.id, offerPrice);
-      setOfferSuccessMsg('Your price offer has been successfully submitted!');
-
+      messageApi.success('Make Offer successfully!');
       // Formulate a local offer object to add to the client cache
       const newOfferObj = {
         id: newOfferRes?.data?.id || Date.now(),
@@ -544,10 +543,11 @@ export default function ProductDetail() {
 
       // Reload offers list
       await loadOffersForPost(product.id);
+      messageApi.success('Offer accepted successfully!');
     } catch (err) {
       console.error('Accept offer error:', err);
       setAcceptError(err.message || 'An error occurred while accepting this offer.');
-      alert(err.message || 'Failed to accept offer');
+      messageApi.error(err.message || 'Failed to accept offer');
     } finally {
       setAcceptingOfferId(null);
     }
@@ -676,6 +676,7 @@ export default function ProductDetail() {
 
   return (
     <div className="container anim-fade-in" style={{ padding: '2rem 1.5rem', position: 'relative' }}>
+      {contextHolder}
       {/* Back navigation */}
       <button
         className="btn btn-secondary"
@@ -1022,9 +1023,10 @@ export default function ProductDetail() {
                                   try {
                                     setAcceptingOfferId(offer.id);
                                     await deleteOffer(offer.id);
+                                    messageApi.success('Offer deleted successfully!');
                                     await loadOffersForPost(product.id);
                                   } catch (err) {
-                                    alert(err.message || 'Failed to delete offer');
+                                    messageApi.error(err.message || 'Failed to delete offer');
                                   } finally {
                                     setAcceptingOfferId(null);
                                   }

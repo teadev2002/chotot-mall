@@ -1,8 +1,10 @@
 import React, { useContext } from 'react';
 import { ShopContext } from '../context/ShopContext';
 import { ShoppingBag, ArrowRight } from 'lucide-react';
+import { message } from 'antd';
 
 export default function Footer() {
+  const [messageApi, contextHolder] = message.useMessage();
   const { setView, setSelectedProductId, setSelectedCategory } = useContext(ShopContext);
 
   const handleFooterLink = (category) => {
@@ -14,6 +16,7 @@ export default function Footer() {
 
   return (
     <footer className="site-footer">
+      {contextHolder}
       <div className="container">
         <div className="footer-grid">
           {/* Column 1: Info */}
@@ -67,7 +70,7 @@ export default function Footer() {
             <p style={{ fontSize: '0.85rem', color: 'var(--clr-text-secondary)', marginBottom: '1rem' }}>
               Subscribe to get notified about sales, custom drops, and restocks.
             </p>
-            <form onSubmit={(e) => { e.preventDefault(); alert('Subscribed successfully!'); }} style={{ position: 'relative' }}>
+            <form onSubmit={(e) => { e.preventDefault(); messageApi.success('Subscribed successfully!'); }} style={{ position: 'relative' }}>
               <input
                 type="email"
                 required

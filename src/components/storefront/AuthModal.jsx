@@ -1,16 +1,16 @@
 import React, { useState, useContext, useEffect } from 'react';
 import { ShopContext } from '../../context/ShopContext';
 import { X, Lock, Mail, User, AlertCircle, CheckCircle2, Phone } from 'lucide-react';
+import { message } from 'antd';
 
 export default function AuthModal() {
+  const [messageApi, contextHolder] = message.useMessage();
   const {
     isAuthModalOpen,
     setIsAuthModalOpen,
     signIn,
     signUp
   } = useContext(ShopContext);
-
-  if (!isAuthModalOpen) return null;
 
   // Tab State: 'signin' or 'signup'
   const [activeTab, setActiveTab] = useState('signin');
@@ -41,10 +41,10 @@ export default function AuthModal() {
     setIsAuthModalOpen(false);
   };
 
+  if (!isAuthModalOpen) return null;
+
   const handleFormSubmit = async (e) => {
     e.preventDefault();
-    setErrorMsg('');
-    setSuccessMsg('');
 
     // Email validation helper
     const isEmailValid = (em) => /\S+@\S+\.\S+/.test(em);
@@ -52,56 +52,57 @@ export default function AuthModal() {
     if (activeTab === 'signin') {
       // Sign In Logic
       if (!email.trim() || !password.trim()) {
-        setErrorMsg('Please enter both email and password.');
+        messageApi.error('Please enter both email and password.');
         return;
       }
       if (!isEmailValid(email)) {
-        setErrorMsg('Please enter a valid email address.');
+        messageApi.error('Please enter a valid email address.');
         return;
       }
 
       const res = await signIn(email, password);
       if (res.success) {
-        setSuccessMsg('Signed in successfully! Welcome back.');
+        messageApi.success('Signed in successfully! Welcome back.');
         setTimeout(() => {
           handleClose();
         }, 800);
       } else {
-        setErrorMsg(res.message);
+        messageApi.error(res.message || 'Failed to sign in.');
       }
     } else {
       // Sign Up Logic
       if (!name.trim() || !email.trim() || !phone.trim() || !password.trim() || !confirmPassword.trim()) {
-        setErrorMsg('Please fill out all fields.');
+        messageApi.error('Please fill out all fields.');
         return;
       }
       if (!isEmailValid(email)) {
-        setErrorMsg('Please enter a valid email address.');
+        messageApi.error('Please enter a valid email address.');
         return;
       }
       if (password.length < 3) {
-        setErrorMsg('Password must be at least 3 characters.');
+        messageApi.error('Password must be at least 3 characters.');
         return;
       }
       if (password !== confirmPassword) {
-        setErrorMsg('Passwords do not match.');
+        messageApi.error('Passwords do not match.');
         return;
       }
 
       const res = await signUp(name, email, password, phone);
       if (res.success) {
-        setSuccessMsg('Account created successfully! Welcome.');
+        messageApi.success('Account created successfully! Welcome.');
         setTimeout(() => {
           handleClose();
         }, 800);
       } else {
-        setErrorMsg(res.message);
+        messageApi.error(res.message || 'Failed to create account.');
       }
     }
   };
 
   return (
     <div className="admin-modal-overlay" onClick={handleClose} style={{ zIndex: 200 }}>
+      {contextHolder}
       <div
         className="admin-modal anim-scale-in"
         onClick={(e) => e.stopPropagation()}
@@ -163,46 +164,7 @@ export default function AuthModal() {
         {/* Form Body */}
         <form onSubmit={handleFormSubmit} style={{ padding: '2rem 1.5rem' }}>
 
-          {/* Status Alert Panels */}
-          {errorMsg && (
-            <div
-              className="badge badge-danger"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                padding: '0.75rem 1rem',
-                marginBottom: '1.25rem',
-                borderRadius: 'var(--radius-sm)',
-                width: '100%',
-                lineHeight: 1.4,
-                textTransform: 'none'
-              }}
-            >
-              <AlertCircle size={16} style={{ flexShrink: 0 }} />
-              {errorMsg}
-            </div>
-          )}
 
-          {successMsg && (
-            <div
-              className="badge badge-success"
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-                padding: '0.75rem 1rem',
-                marginBottom: '1.25rem',
-                borderRadius: 'var(--radius-sm)',
-                width: '100%',
-                lineHeight: 1.4,
-                textTransform: 'none'
-              }}
-            >
-              <CheckCircle2 size={16} style={{ flexShrink: 0 }} />
-              {successMsg}
-            </div>
-          )}
 
           {/* Tab 2 Sign Up - Full Name input */}
           {activeTab === 'signup' && (

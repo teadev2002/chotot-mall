@@ -3,11 +3,12 @@ import { ShopContext } from '../../context/ShopContext';
 import { fetchUserOrders, fetchUserProfile, updateUserOrder, fetchOrderDetailsByPostId, fetchUserAddress, fetchOrderAndTracking } from '../../services/userService';
 import { fetchPostById, fetchOffersByPostId, acceptOffer, deleteOffer } from '../../services/productService';
 import { ArrowLeft, Loader2, Calendar, ShoppingBag, User, Tag } from 'lucide-react';
-import { Steps, Popconfirm, Button } from 'antd';
+import { Steps, Popconfirm, Button, Skeleton, message } from 'antd';
 import { EyeOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { apiFetch } from '../../services/api';
 
 export default function UserOrder() {
+  const [messageApi, contextHolder] = message.useMessage();
   const { setView, currentUser, formatPrice, setSelectedProductId } = useContext(ShopContext);
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -241,10 +242,11 @@ export default function UserOrder() {
     try {
       setUpdatingOrderId(`offer-${offerId}`);
       await acceptOffer(offerId);
+      messageApi.success('Offer accepted successfully!');
       await loadOrdersData();
     } catch (err) {
       console.error('Failed to accept offer:', err);
-      setError(err.message || 'Failed to accept offer.');
+      messageApi.error(err.message || 'Failed to accept offer.');
     } finally {
       setUpdatingOrderId(null);
     }
@@ -500,9 +502,8 @@ export default function UserOrder() {
         </div>
 
         {orderDetailLoading ? (
-          <div style={{ textAlign: 'center', padding: '6rem 2rem', background: 'var(--clr-bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--clr-border)' }}>
-            <Loader2 size={44} className="anim-spin" style={{ color: 'var(--clr-primary)', margin: '0 auto 1.5rem' }} />
-            <p style={{ color: 'var(--clr-text-secondary)', fontWeight: 500 }}>Retrieving transaction details from secure server...</p>
+          <div style={{ padding: '2rem', background: 'var(--clr-bg-card)', borderRadius: 'var(--radius-lg)', border: '1px solid var(--clr-border)' }}>
+            <Skeleton active />
           </div>
         ) : orderDetailError ? (
           <div style={{
@@ -626,10 +627,11 @@ export default function UserOrder() {
                         try {
                           setUpdatingOrderId(selectedOrderDetails.orderId);
                           await deleteOffer(offerId);
+                          messageApi.success('Offer deleted successfully!');
                           handleBackToOrders();
                           await loadOrdersAndOffers();
                         } catch (err) {
-                          alert(err.message || 'Failed to delete offer');
+                          messageApi.error(err.message || 'Failed to delete offer');
                         } finally {
                           setUpdatingOrderId(null);
                         }
@@ -707,6 +709,7 @@ export default function UserOrder() {
 
   return (
     <div className="container anim-fade-in" style={{ padding: '2rem 1.5rem' }}>
+      {contextHolder}
       {/* Navigation Header */}
       <button
         className="btn btn-secondary"
@@ -769,9 +772,8 @@ export default function UserOrder() {
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '4rem 2rem' }}>
-          <Loader2 size={36} className="anim-spin" style={{ color: 'var(--clr-primary)', margin: '0 auto 1rem' }} />
-          <p style={{ color: 'var(--clr-text-secondary)' }}>Loading your offers database...</p>
+        <div style={{ padding: '2rem' }}>
+          <Skeleton active />
         </div>
       ) : error ? (
         <div style={{
@@ -852,9 +854,10 @@ export default function UserOrder() {
                               try {
                                 setUpdatingOrderId(order.id);
                                 await deleteOffer(order.offerId);
+                                messageApi.success('Offer deleted successfully!');
                                 await loadOrdersAndOffers();
                               } catch (err) {
-                                alert(err.message || 'Failed to delete offer');
+                                messageApi.error(err.message || 'Failed to delete offer');
                               } finally {
                                 setUpdatingOrderId(null);
                               }
